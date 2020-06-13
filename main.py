@@ -66,6 +66,8 @@ def loadMessages(id, width, num = 500, offset = 0):
     bottom_offset = 0
     for n, m in reversed(list(enumerate(messages))):
         text_list = textwrap.wrap(m.content, width)
+        # updateHbox(str(n))
+        # screen.getch()
         if m.from_me == 0:
             try:
                 mbox.addstr(messages_height - 2 - bottom_offset, 1, '|/' + '-'*(width - 2))
@@ -94,6 +96,11 @@ def loadMessages(id, width, num = 500, offset = 0):
             bottom_offset += 1
     updateHbox('loaded Messages!')
 
+def refreshCBox(down = 0):
+    if down < 0:
+        return
+    cbox.refresh(down, 0, 0, 0, t_y - 2, chats_width)
+
 def getTboxText():
     tbox.addstr(1, 1, ' '*(t_width - 2))
     tbox.refresh()
@@ -112,6 +119,9 @@ def updateHbox(string):
 chats = getChats()
 messages = []
 current_chat_id = ''
+
+chat_padding = 2
+chat_offset = 6
 
 screen = curses.initscr()
 
@@ -134,30 +144,36 @@ t_y = rows - t_height - h_height
 
 min_chat_width = 24
 chats_width = int(cols * 0.3) if cols * 0.3 > min_chat_width else min_chat_width
-chats_height = t_y
+# chats_height = t_y
+chats_height = len(chats) * (2 * chat_padding + 1)
 chats_x = t_x
 chats_y = 0
 
 messages_width = cols - chats_width
-messages_height = chats_height
+messages_height = t_y
 messages_x = chats_width + chats_x
 messages_y = chats_y
 single_width = int(messages_width * 0.6)
 
-# Padding for chat_id/display_names
-chat_padding = 2
-chat_offset = 6
-
 screen.clear()
 screen.refresh()
 
-cbox = curses.newwin(chats_height, chats_width, chats_y, chats_x)
+# cbox = curses.newwin(chats_height, chats_width, chats_y, chats_x)
+# cbox.box()
+# cbox.scrollok(True)
+# cbox.refresh()
+
+cbox = curses.newpad(chats_height, chats_width)
+cbox.scrollok(True)
 cbox.box()
-cbox.refresh()
+cbox_offset = 0
+# cbox.refresh(0, 0, 0, 0, t_y, chats_width)
+refreshCBox()
 
 mbox = curses.newwin(messages_height, messages_width, messages_y, messages_x)
 mbox.box()
 mbox.refresh()
+# mbox = curses.newpad
 
 tbox = curses.newwin(t_height, t_width, t_y, t_x)
 tbox.box()
@@ -179,7 +195,7 @@ for n, c in enumerate(chats, 0):
     except curses.error:
         pass
 
-cbox.refresh()
+refreshCBox()
 
 screen.refresh()
 
@@ -191,9 +207,9 @@ while True:
     # curses.echo() # TESTING
     if cmd == ':s':
         if current_chat_id == '':
-            updateHbox('You have not selected a conversation. Please do so before attempting to send texts')
+            updateHbox('you have not selected a conversation. please do so before attempting to send texts')
             continue
-        updateHbox('Please enter the content of your text! Note that as soon as you hit enter, the text will be sent :)')
+        updateHbox('please enter the content of your text! note that as soon as you hit enter, the text will be sent :)')
         new_text = getTboxText()
         sendText(new_text, current_chat_id)
     elif ':c' == cmd[:2]:
@@ -207,6 +223,14 @@ while True:
         current_chat_id = chats[num].chat_id
         loadMessages(current_chat_id, single_width)
  
+    elif cmd == ':d':
+        # cbox.scroll(1) if cbox_offset < chats_height else 0
+        cbox_offset += 1 if cbox_offset < chats_height else chats_height
+        refreshCBox(cbox_offset)
+    elif cmd == ':u':
+        # cbox.scroll(-1) if cbox_offset > 0 else 0
+        cbox_offset -= 1 if cbox_offset > 0 else 0
+        refreshCBox(cbox_offset)
     elif cmd == ':q':
         break
     else:
