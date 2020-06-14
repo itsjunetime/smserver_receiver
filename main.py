@@ -15,8 +15,6 @@ my_chat_end = '╲▏'
 their_chat_end = '▕╱'
 chat_underline = '▔'
 
-# current_chat_indicator = colors.light_cyan + current_chat_indicator + colors.default
-
 print('Loading ...')
 
 class Message:
@@ -35,14 +33,12 @@ class Chat:
     chat_id = ''
     display_name = ''
     recipients = {} # Would normally just be the chatid of the one recipient. 
-    # list_num = 0
 
     def __init__(self, ci = '', rc = {}, dn = ''):
         self.chat_id = ci
         self.display_name = dn
         self.recipients[ci] = dn
         self.recipients.update(rc)
-        # self.list_num = ln
 
 def getChats(num = 30):
     req_string = 'http://' + ip + ':' + port + '/' + req + '?c'
@@ -57,8 +53,6 @@ def getChats(num = 30):
     return return_val
 
 def loadInChats():
-    # chats = getChats()
-
     for n, c in enumerate(chats, 0):
         d_name = c.display_name if c.display_name != '' else c.chat_id
         if len(d_name) > chats_width - 2 - chat_offset:
@@ -85,7 +79,6 @@ def getMessages(id, num = 500, offset = 0):
     req_string = 'http://' + ip + ':' + port + '/' + req + '?p=' + id + '&n=' + str(num)
     new_messages = requests.get(req_string)
     new_json = new_messages.json()
-    # new_json = json.load(new_messages.content)
     message_items = new_json['texts']
     return_val = []
     for i in message_items:
@@ -98,12 +91,8 @@ def loadMessages(id, width, num = 500, offset = 0):
     messages = getMessages(id, num, offset)
     bottom_offset = 0
     mbox.clear()
-    # mbox.box()
-    # mbox.addstr(0, 5, '| messages |')
     for n, m in reversed(list(enumerate(messages))):
         text_list = textwrap.wrap(m.content, width)
-        # updateHbox(str(n))
-        # screen.getch()
         if m.from_me == False:
             try:
                 mbox.addstr(messages_height - 2 - bottom_offset, 1, their_chat_end + chat_underline*(width - len(their_chat_end)), curses.color_pair(3))
@@ -156,7 +145,6 @@ def updateHbox(string):
     hbox.refresh()
 
 chats = getChats()
-# chats = []
 messages = []
 current_chat_id = ''
 current_chat_index = 0
@@ -166,7 +154,6 @@ chat_offset = 6
 
 screen = curses.initscr()
 
-# curses.noecho()
 curses.cbreak()
 curses.start_color()
 curses.use_default_colors()
@@ -178,7 +165,6 @@ curses.init_pair(1, curses.COLOR_CYAN, -1)
 curses.init_pair(2, curses.COLOR_BLUE, -1)
 curses.init_pair(3, 248, -1) # Should be like light gray?
 
-# send_box_height = 3
 h_height = 1
 h_width = cols
 h_x = 0
@@ -191,8 +177,6 @@ t_y = rows - t_height - h_height
 
 min_chat_width = 24
 chats_width = int(cols * 0.3) if cols * 0.3 > min_chat_width else min_chat_width
-# chats_height = t_y
-# chats_height = len(chats) * (2 * chat_padding + 1)
 chats_height = len(chats) * (chat_padding + 1)
 chats_x = t_x
 chats_y = 0
@@ -207,20 +191,13 @@ single_width = int(messages_width * 0.6)
 screen.clear()
 screen.refresh()
 
-# cbox = curses.newwin(chats_height, chats_width, chats_y, chats_x)
-# cbox.box()
-# cbox.scrollok(True)
-# cbox.refresh()
-
 cbox_wrapper = curses.newwin(cbox_wrapper_height, chats_width, chats_y, chats_x)
 cbox_wrapper.box()
 cbox_wrapper.addstr(0, 5, '| chats |')
 cbox_wrapper.refresh()
 cbox = curses.newpad(chats_height - 2, chats_width - 2) # Originally didn't have the -2 s. Get rid of them if problems.
 cbox.scrollok(True)
-# cbox.box()
 cbox_offset = 0
-# cbox.refresh(0, 0, 0, 0, t_y, chats_width)
 refreshCBox()
 
 mbox = curses.newwin(messages_height, messages_width, messages_y, messages_x)
@@ -228,7 +205,6 @@ mbox = curses.newwin(messages_height, messages_width, messages_y, messages_x)
 mbox.box()
 mbox.addstr(0, 5, '| messages |')
 mbox.refresh()
-# mbox = curses.newpad
 
 tbox = curses.newwin(t_height, t_width, t_y, t_x)
 tbox.box()
@@ -240,31 +216,12 @@ updateHbox('type \':h\' to get help!')
 
 screen.refresh()
 
-# for n, c in enumerate(chats, 0):
-#     d_name = c.display_name if c.display_name != '' else c.chat_id
-#     if len(d_name) > chats_width - 2 - chat_offset:
-#         d_name = d_name[:chats_width - 2 - chat_offset - 3] + '...'
-#     vert_pad = chat_padding * (n + 1)
-#     if vert_pad >= chats_height - 1:
-#         break
-#     try:
-#         cbox.addstr(vert_pad, 1, str(n))
-#         cbox.addstr(vert_pad, chat_offset, d_name)
-#     except curses.error:
-#         pass
-
-# refreshCBox()
-
 loadInChats()
 
 screen.refresh()
 
 while True:
     cmd = getTboxText()
-    # tbox.addstr(1, 1, cmd)
-    # curses.noecho() # TESTING
-    # screen.getch() # TESTING
-    # curses.echo() # TESTING
     if cmd == ':s':
         if current_chat_id == '':
             updateHbox('you have not selected a conversation. please do so before attempting to send texts')
@@ -273,8 +230,6 @@ while True:
         new_text = getTboxText()
         sendText(new_text, current_chat_id)
     elif ':c' == cmd[:2]:
-        # updateHbox(cmd[3:]) # TESTING
-        # screen.getch() # TESTING
         try:
             num = int(cmd[3:])
         except:
