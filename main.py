@@ -86,6 +86,7 @@ def loadInChats():
     refreshCBox()
 
 def reloadChats():
+    global chats
     updateHbox('reloading chats. hold on...')
     chats = getChats()
     loadInChats()
@@ -194,6 +195,7 @@ cols = curses.COLS
 curses.init_pair(1, curses.COLOR_CYAN, -1)
 curses.init_pair(2, curses.COLOR_BLUE, -1)
 curses.init_pair(3, 248, -1) # Should be like light gray?
+curses.init_pair(4, curses.COLOR_WHITE, -1)
 
 h_height = 1
 h_width = cols
@@ -222,7 +224,10 @@ screen.clear()
 screen.refresh()
 
 cbox_wrapper = curses.newwin(cbox_wrapper_height, chats_width, chats_y, chats_x)
+# screen.attron
+cbox_wrapper.attron(curses.color_pair(1))
 cbox_wrapper.box()
+cbox_wrapper.attron(curses.color_pair(4))
 cbox_wrapper.addstr(0, 5, '| chats |')
 cbox_wrapper.refresh()
 cbox = curses.newpad(chats_height - 2, chats_width - 2) # Originally didn't have the -2 s. Get rid of them if problems.
