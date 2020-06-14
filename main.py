@@ -9,21 +9,24 @@ ip = '192.168.50.10'
 port = '8741'
 req = 'requests'
 chats_scroll_factor = 2
+messages_scroll_factor = 5
 messages_scroll_factor = chats_scroll_factor
 current_chat_indicator = '>'
 my_chat_end = '╲▏'
 their_chat_end = '▕╱'
 chat_underline = '▔'
+chat_vertical_offset = 1
 
 print('Loading ...')
 
 class Message:
     """Message, from either person."""
     from_me = True
-    content = ''
+    # content = ''
+    content = []
     timestamp = 0
 
-    def __init__(self, c = '', ts = 0, fm = True):
+    def __init__(self, c = [], ts = 0, fm = True):
         self.from_me = fm
         self.content = c
         self.timestamp = ts
@@ -40,6 +43,19 @@ class Chat:
         self.recipients[ci] = dn
         self.recipients.update(rc)
 
+chats = []
+messages = []
+current_chat_id = ''
+current_chat_index = 0
+
+chat_padding = 2
+chat_offset = 6
+
+cbox_offset = 0
+mbox_offset = 0
+
+total_messages_height = 0
+
 def getChats(num = 30):
     req_string = 'http://' + ip + ':' + port + '/' + req + '?c'
     new_chats = requests.get(req_string)
@@ -53,11 +69,12 @@ def getChats(num = 30):
     return return_val
 
 def loadInChats():
+    # chats = getChats()
     for n, c in enumerate(chats, 0):
         d_name = c.display_name if c.display_name != '' else c.chat_id
         if len(d_name) > chats_width - 2 - chat_offset:
             d_name = d_name[:chats_width - 2 - chat_offset - 3] + '...'
-        vert_pad = chat_padding * (n + 1)
+        vert_pad = (chat_padding * n) + chat_vertical_offset
         if vert_pad >= chats_height - 1:
             break
         try:
@@ -75,53 +92,59 @@ def reloadChats():
     screen.refresh()
     updateHbox('reloaded chats!')
 
+def selectChat(cmd):
+    global current_chat_index
+    try:
+        num = int(cmd[3:])
+    except:
+        updateHbox('you input a string where you should\'ve input an index. please try again.')
+        return
+    cbox.addstr((current_chat_index * 2) + chat_vertical_offset, chat_offset - 2, ' ')
+    cbox.addstr((num * 2) + chat_vertical_offset, chat_offset - 2, current_chat_indicator, curses.color_pair(1))
+    refreshCBox(cbox_offset)
+    current_chat_id = chats[num].chat_id
+    current_chat_index = num
+    loadMessages(current_chat_id, single_width)
+
 def getMessages(id, num = 500, offset = 0):
+    global single_width
     req_string = 'http://' + ip + ':' + port + '/' + req + '?p=' + id + '&n=' + str(num)
     new_messages = requests.get(req_string)
     new_json = new_messages.json()
     message_items = new_json['texts']
     return_val = []
     for i in message_items:
-        new_m = Message(i['text'], i['date'], True if i['is_from_me'] == '1' else False)
+        new_m = Message(textwrap.wrap(i['text'], single_width), i['date'], True if i['is_from_me'] == '1' else False)
         return_val.append(new_m)
     return return_val
 
-def loadMessages(id, width, num = 500, offset = 0):
+def loadMessages(id, num = 500, offset = 0):
+    global total_messages_height
     updateHbox('loading messages. please wait...')
     messages = getMessages(id, num, offset)
-    bottom_offset = 0
+    total_messages_height = sum(len(i.content) + 2 for i in messages) # Need to add 2 to account for gap  + underline
+    top_offset = 1
     mbox.clear()
-    for n, m in reversed(list(enumerate(messages))):
-        text_list = textwrap.wrap(m.content, width)
-        if m.from_me == False:
-            try:
-                mbox.addstr(messages_height - 2 - bottom_offset, 1, their_chat_end + chat_underline*(width - len(their_chat_end)), curses.color_pair(3))
-            except curses.error:
-                pass
-            bottom_offset += 1
-            for n, l in reversed(list(enumerate(text_list))):
-                try:    
-                    mbox.addstr(messages_height - 2 - bottom_offset, 2, l)
-                except curses.error:
-                    pass
-                bottom_offset += 1
-            bottom_offset += 1
-        else:
-            try:
-                mbox.addstr(messages_height - 2 - bottom_offset, messages_width - 2 - width, chat_underline*(width - len(my_chat_end)) + my_chat_end, curses.color_pair(2))
-            except curses.error:
-                pass
-            bottom_offset += 1
-            for n, l in reversed(list(enumerate(text_list))):
-                try:
-                    mbox.addstr(messages_height - 2 - bottom_offset, messages_width - 2 - width, l)
-                except curses.error:
-                    pass
-                bottom_offset += 1
-            bottom_offset += 1
-    mbox.box()
-    mbox.addstr(0, 5, '| messages |')
-    mbox.refresh()
+    mbox.resize(total_messages_height, messages_width - 2)
+
+    for n, m in enumerate(messages):
+        text_width = max(len(i) for i in m.content)
+        left_padding = 0
+        underline = their_chat_end + chat_underline*(text_width - len(their_chat_end))
+
+        if m.from_me == True:
+            left_padding = messages_width - 3 - text_width # I feel like it shouldn't be 3 but ok
+            underline = chat_underline*(text_width - len(my_chat_end)) + my_chat_end
+
+        for l in m.content:
+            mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, l)
+            top_offset += 1
+        
+        mbox.addstr(top_offset, left_padding, underline, curses.color_pair(2) if m.from_me else curses.color_pair(3))
+        top_offset += 2
+
+    total_messages_height = top_offset + 1
+    refreshMBox()
     updateHbox('loaded Messages!')
 
 def refreshCBox(down = 0):
@@ -129,11 +152,24 @@ def refreshCBox(down = 0):
         return
     cbox.refresh(down, 0, 1, 1, t_y - 2, chats_width - 2)
 
+def refreshMBox(down = 0):
+    if down < 0:
+        return
+    mbox.refresh(total_messages_height - down - messages_height, 0, 1, chats_width + 2, t_y - 2, cols - 2)
+
 def getTboxText():
     tbox.addstr(1, 1, ' '*(t_width - 2))
     tbox.refresh()
     string = str(screen.getstr(t_y + 1, t_x + 1))
     return string[2:len(string) - 1]
+
+def sendTextCmd():
+    if current_chat_id == '':
+        updateHbox('you have not selected a conversation. please do so before attempting to send texts')
+        return
+    updateHbox('please enter the content of your text! note that as soon as you hit enter, the text will be sent :)')
+    new_text = getTboxText()
+    sendText(new_text, current_chat_id)   
 
 def sendText(text, to):
     req_string = 'http://' + ip + ':' + port + '/' + req + '?s=' + text + '&t=' + to
@@ -145,12 +181,6 @@ def updateHbox(string):
     hbox.refresh()
 
 chats = getChats()
-messages = []
-current_chat_id = ''
-current_chat_index = 0
-
-chat_padding = 2
-chat_offset = 6
 
 screen = curses.initscr()
 
@@ -197,14 +227,21 @@ cbox_wrapper.addstr(0, 5, '| chats |')
 cbox_wrapper.refresh()
 cbox = curses.newpad(chats_height - 2, chats_width - 2) # Originally didn't have the -2 s. Get rid of them if problems.
 cbox.scrollok(True)
-cbox_offset = 0
-refreshCBox()
+# cbox_offset = 0
+# refreshCBox()
 
-mbox = curses.newwin(messages_height, messages_width, messages_y, messages_x)
-#mbox.border(0, 0, 0, 0, '╭', '╮', '╰', '╯')
-mbox.box()
-mbox.addstr(0, 5, '| messages |')
-mbox.refresh()
+# mbox = curses.newwin(messages_height, messages_width, messages_y, messages_x)
+# mbox.border(0, 0, 0, 0, '╭', '╮', '╰', '╯')
+# mbox.box()
+# mbox.addstr(0, 5, '| messages |')
+# mbox.refresh()
+
+mbox_wrapper = curses.newwin(messages_height, messages_width, messages_y, messages_x)
+mbox_wrapper.box()
+mbox_wrapper.addstr(0, 5, '| messages |')
+mbox_wrapper.refresh()
+mbox = curses.newpad(messages_height - 2, messages_width - 2)
+mbox.scrollok(True)
 
 tbox = curses.newwin(t_height, t_width, t_y, t_x)
 tbox.box()
@@ -212,9 +249,10 @@ tbox.addstr(0, 5, '| input here :) |')
 tbox.refresh()
 
 hbox = curses.newwin(h_height, h_width, h_y, h_x)
-updateHbox('type \':h\' to get help!')
 
 screen.refresh()
+
+updateHbox('type \':h\' to get help!')
 
 loadInChats()
 
@@ -223,36 +261,43 @@ screen.refresh()
 while True:
     cmd = getTboxText()
     if cmd == ':s':
-        if current_chat_id == '':
-            updateHbox('you have not selected a conversation. please do so before attempting to send texts')
-            continue
-        updateHbox('please enter the content of your text! note that as soon as you hit enter, the text will be sent :)')
-        new_text = getTboxText()
-        sendText(new_text, current_chat_id)
+        # if current_chat_id == '':
+        #     updateHbox('you have not selected a conversation. please do so before attempting to send texts')
+        #     continue
+        # updateHbox('please enter the content of your text! note that as soon as you hit enter, the text will be sent :)')
+        # new_text = getTboxText()
+        # sendText(new_text, current_chat_id)
+        sendTextCmd()
     elif ':c' == cmd[:2]:
-        try:
-            num = int(cmd[3:])
-        except:
-            updateHbox('you input a string where you should\'ve input an index. please try again.')
-            continue
-        cbox.addstr((current_chat_index + 1) * 2, chat_offset - 2, ' ')
-        cbox.addstr((num + 1) * 2, chat_offset - 2, current_chat_indicator, curses.color_pair(1))
-        refreshCBox(cbox_offset)
-        current_chat_id = chats[num].chat_id
-        current_chat_index = num
-        loadMessages(current_chat_id, single_width)
- 
-    elif cmd == ':d':
+        selectChat(cmd)
+        # try:
+        #     num = int(cmd[3:])
+        # except:
+        #     updateHbox('you input a string where you should\'ve input an index. please try again.')
+        #     continue
+        # cbox.addstr((current_chat_index + 1) * 2, chat_offset - 2, ' ')
+        # cbox.addstr((num + 1) * 2, chat_offset - 2, current_chat_indicator, curses.color_pair(1))
+        # refreshCBox(cbox_offset)
+        # current_chat_id = chats[num].chat_id
+        # current_chat_index = num
+        # loadMessages(current_chat_id, single_width)
+    elif cmd == ':K':
         # cbox.scroll(1) if cbox_offset < chats_height else 0
         cbox_offset += chats_scroll_factor if cbox_offset < chats_height else 0
         refreshCBox(cbox_offset)
-    elif cmd == ':u':
+    elif cmd == ':J':
         # cbox.scroll(-1) if cbox_offset > 0 else 0
         cbox_offset -= chats_scroll_factor if cbox_offset > 0 else 0
         refreshCBox(cbox_offset)
+    elif cmd == ':k':
+        mbox_offset += messages_scroll_factor if mbox_offset < messages_height - 4 else 0
+        refreshMBox(mbox_offset)
+    elif cmd == ':j':
+        # decrease, make 0 if less than messages_scroll_factor
+        mbox_offset -= messages_scroll_factor if mbox_offset > 0 else mbox_offset 
+        refreshMBox(mbox_offset)
     elif cmd == ':r':
         reloadChats()
-        
     elif cmd == ':q':
         break
     else:
