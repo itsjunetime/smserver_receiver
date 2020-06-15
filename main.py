@@ -21,14 +21,14 @@ input_title = '| input here :) |'
 help_title = '| help |'
 help_message = ['COMMANDS:',
 ':h - displays this help message',
-':s - starts the process for sending a text with the currently selected conversation.',
-'    after you hit enter on \':s\', You will then be able to input the content of your text, and hit <enter> once you are ready to send it.',
-':c - this should be immediately followed by a number, specifically the index of the conversation whose texts you want to view.',
-'     the indices are displayed to the left of each conversation in the leftmost box. eg \':c 25\'',
+':s - starts the process for sending a text with the currently selected conversation. after you hit enter on \':s\', You will then be able to input the content of your text, and hit <enter> once you are ready to send it.',
+':c - this should be immediately followed by a number, specifically the index of the conversation whose texts you want to view. the indices are displayed to the left of each conversation in the leftmost box. eg \':c 25\'',
 'j -  scrolls down in the selected window',
 'k -  scrolls up in the selected window',
-':f, h, l - switches selected window',
-':q, exit, quit - exits the window, cleaning up. recommended over ctrl+c.']
+':f, h, l - ',
+'     switches selected window',
+':q, exit, quit - ',
+'     exits the window, cleaning up. recommended over ctrl+c.']
 ping_interval = 60
 
 print('Loading ...')
@@ -106,7 +106,11 @@ def loadInChats():
 def reloadChats():
     global chats
     updateHbox('reloading chats. hold on...')
-    chats = getChats()
+    try:
+        chats = getChats()
+    except:
+        print('failed to connect to server. please check your host.')
+        exit()
     loadInChats()
     screen.refresh()
     updateHbox('reloaded chats!')
@@ -315,9 +319,9 @@ def displayHelp():
     top_offset = 0
     for l in help_message:
         aval_rows = wrap(l, help_width - 2)
-        for r in aval_rows:
+        for n, r in enumerate(aval_rows):
             try:
-                help_box.addstr(top_offset, 0, r)
+                help_box.addstr(top_offset, 0, r if n == 0 else '     ' + r)
             except:
                 pass
             top_offset += 1
