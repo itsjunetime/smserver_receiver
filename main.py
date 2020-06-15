@@ -1,6 +1,8 @@
 import curses
-import requests
-import textwrap
+from requests import get
+from textwrap import wrap
+from time import sleep
+from multiprocessing.pool import ThreadPool
 
 ip = '192.168.50.10'
 port = '8741'
@@ -13,10 +15,10 @@ their_chat_end = '▕╱'
 chat_underline = '▔'
 chat_vertical_offset = 1
 title_offset = 5
-chats_title = '| chats |'
-messages_title = '| messages |'
-input_title = '| input here :) |'
-help_title = '| help |'
+chats_title = '< chats >'
+messages_title = '< messages >'
+input_title = '< input here :) >'
+help_title = '< help >'
 help_message = ['COMMANDS:',
 ':h - displays this help message',
 ':s - starts the process for sending a text with the currently selected conversation.',
@@ -27,6 +29,7 @@ help_message = ['COMMANDS:',
 'k -  scrolls up in the selected window',
 ':f, h, l - switches selected window',
 ':q, exit, quit - exits the window, cleaning up. recommended over ctrl+c.']
+ping_interval = 60
 
 print('Loading ...')
 
@@ -68,9 +71,11 @@ total_messages_height = 0
 
 selected_box = 'c' # Gonna be 'm' or 'c', between cbox and mbox.
 
+end_all = False
+
 def getChats(num = 30):
     req_string = 'http://' + ip + ':' + port + '/' + req + '?c'
-    new_chats = requests.get(req_string)
+    new_chats = get(req_string)
     new_json = new_chats.json()
     chat_items = new_json['chats']
     return_val = []
@@ -81,6 +86,7 @@ def getChats(num = 30):
     return return_val
 
 def loadInChats():
+    cbox.clear()
     for n, c in enumerate(chats, 0):
         d_name = c.display_name if c.display_name != '' else c.chat_id
         if len(d_name) > chats_width - 2 - chat_offset:
@@ -122,12 +128,12 @@ def selectChat(cmd):
 def getMessages(id, num = 500, offset = 0):
     global single_width
     req_string = 'http://' + ip + ':' + port + '/' + req + '?p=' + id + '&n=' + str(num)
-    new_messages = requests.get(req_string)
+    new_messages = get(req_string)
     new_json = new_messages.json()
     message_items = new_json['texts']
     return_val = []
     for i in message_items:
-        new_m = Message(textwrap.wrap(i['text'], single_width), i['date'], True if i['is_from_me'] == '1' else False)
+        new_m = Message(wrap(i['text'], single_width), i['date'], True if i['is_from_me'] == '1' else False)
         return_val.append(new_m)
     return return_val
 
@@ -207,10 +213,29 @@ def sendTextCmd():
         updateHbox('you have not selected a conversation. please do so before attempting to send texts')
         return
     updateHbox('please enter the content of your text! note that as soon as you hit enter, the text will be sent :)')
-    new_text = getTboxText()
+    new_text = getTextText()
+    if new_text == '':
+        updateHbox('cancelled; text was not sent.')
+        return
     req_string = 'http://' + ip + ':' + port + '/' + req + '?s=' + new_text + '&t=' + current_chat_id
-    requests.get(req_string)
+    get(req_string)
     updateHbox('text sent!')
+
+def getTextText():
+    tbox.addstr(1, 1, ' '*(t_width - 2))
+    tbox.refresh()
+    whole_string = ''
+    while True:
+        ch = tbox.getch(1, 1)
+        if ch in (27, curses.KEY_CANCEL):
+            return ''
+        elif ch in (127, curses.KEY_BACKSPACE):
+            whole_string = whole_string[:len(whole_string) - 1]
+            tbox.addstr(1, 1 + len(whole_string), ' ')
+        else:
+            tbox.addstr(1, 1 + len(whole_string), chr(ch))
+            whole_string += chr(ch)
+            tbox.move(1, 1 + len(whole_string))
 
 def updateHbox(string):
     hbox.clear()
@@ -312,8 +337,59 @@ def displayHelp():
 
     switchSelected()
     switchSelected()
-            
-chats = getChats()
+
+def pingServer():
+    global end_all
+    req_string = 'http://' + ip + ':' + port + '/' + req + '?x'
+    while not end_all:
+        sleep(ping_interval)
+        try:
+            new_chats = get(req_string).json()
+        except:
+            print('Lost connection to server')
+            end_all = True
+            exit()
+        if len(new_chats) != 0:
+            reloadChats()
+
+def mainTask():
+    global end_all
+    while not end_all:
+        cmd = getTboxText()
+        if cmd == ':s' or cmd == 'send':
+            sendTextCmd()
+        elif ':c' == cmd[:2]:
+            selectChat(cmd)
+        elif cmd == ':f' or cmd == 'flip':
+            switchSelected()
+        elif cmd == ':r' or cmd == 'reload':
+            reloadChats()
+        elif cmd in (':h', ':H'):
+            displayHelp()
+        elif cmd == ':q' or cmd == 'exit' or cmd == 'quit':
+            break
+        else:
+            updateHbox('sorry, that command isn\'t supported :(')
+    
+    updateHbox('exiting...')
+    end_all = True
+        
+def main():
+    global end_all
+    pool = ThreadPool(processes=2)
+    pool.apply_async(pingServer)
+    pool.apply_async(mainTask)
+
+    while not end_all:
+        sleep(0.5)
+    
+    pool.terminate()
+
+try:          
+    chats = getChats()
+except:
+    print('Could not get chats. Check to make sure your host server is running.')
+    exit()
 
 screen = curses.initscr()
 
@@ -389,22 +465,7 @@ loadInChats()
 
 screen.refresh()
 
-while True:
-    cmd = getTboxText()
-    if cmd == ':s' or cmd == 'send':
-        sendTextCmd()
-    elif ':c' == cmd[:2]:
-        selectChat(cmd)
-    elif cmd == ':f' or cmd == 'flip':
-        switchSelected()
-    elif cmd == ':r' or cmd == 'reload':
-        reloadChats()
-    elif cmd == ':q' or cmd == 'exit' or cmd == 'quit':
-        break
-    elif cmd in (':h', ':H'):
-        displayHelp()
-    else:
-        updateHbox('sorry, that command isn\'t supported :(')
+main()
 
 curses.echo()
 curses.nocbreak()
