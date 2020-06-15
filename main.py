@@ -19,19 +19,35 @@ chats_title = '| chats |'
 messages_title = '| messages |'
 input_title = '| input here :) |'
 help_title = '| help |'
+help_inset = 5
 help_message = ['COMMANDS:',
-':h - displays this help message',
-':s - starts the process for sending a text with the currently selected conversation. after you hit enter on \':s\', You will then be able to input the content of your text, and hit <enter> once you are ready to send it.',
-':c - this should be immediately followed by a number, specifically the index of the conversation whose texts you want to view. the indices are displayed to the left of each conversation in the leftmost box. eg \':c 25\'',
-'j -  scrolls down in the selected window',
-'k -  scrolls up in the selected window',
+':h, :H, help - ',
+'displays this help message',
+':s, :S, send - ',
+'starts the process for sending a text with the currently selected conversation. after you hit enter on \':s\', You will then be able to input the content of your text, and hit <enter> once you are ready to send it, or hit <esc> to cancel. You can also enter enter your text with a space between it and the \':s\', e.g.: \':s hello!\'',
+':c, :C, chat - ',
+'this should be immediately followed by a number, specifically the index of the conversation whose texts you want to view. the indices are displayed to the left of each conversation in the leftmost box. eg \':c 25\'',
+'j, J - ',
+'scrolls down in the selected window',
+'k, K - ',
+'scrolls up in the selected window',
 ':f, h, l - ',
-'     switches selected window',
+'switches selected window between messages and conversations',
 ':q, exit, quit - ',
-'     exits the window, cleaning up. recommended over ctrl+c.']
+'exits the window, cleaning up. recommended over ctrl+c.',
+'If characters are not appearing, or the program is acting weird, just type a bunch of random characters and hit enter.']
 ping_interval = 60
+poll_exit = 0.5
+default_num_chats = 500
 
 print('Loading ...')
+
+if ip == '' or port == '':
+    if ip == '':
+        print('Please put in your device\'s private ip to communicate with')
+    if port == '':
+        print('Please put in the port that your device will be hosting the web server on. If you changed nothing, it should be port 8741.')
+    exit()
 
 class Message:
     """Message, from either person."""
@@ -122,10 +138,15 @@ def selectChat(cmd):
     global current_chat_index
     global current_chat_id
     try:
-        num = int(cmd[3:])
+        num = int(cmd[cmd.index(' ') + 1:])
     except:
-        updateHbox('you input a string where you should\'ve input an index. please try again.')
+        updateHbox('you input the index incorrectly. please try again.')
         return
+    
+    if num >= len(chats):
+        updateHbox('that index is out of range. please load more chats or try again')
+        return
+
     cbox.addstr((current_chat_index * 2) + chat_vertical_offset, chat_offset - 2, ' ')
     cbox.addstr((num * 2) + chat_vertical_offset, chat_offset - 2, current_chat_indicator, curses.color_pair(5))
     refreshCBox(cbox_offset)
@@ -133,7 +154,7 @@ def selectChat(cmd):
     current_chat_index = num
     loadMessages(current_chat_id, single_width)
 
-def getMessages(id, num = 500, offset = 0):
+def getMessages(id, num = default_num_chats, offset = 0):
     global single_width
     req_string = 'http://' + ip + ':' + port + '/' + req + '?p=' + id + '&n=' + str(num)
     new_messages = get(req_string)
@@ -145,7 +166,7 @@ def getMessages(id, num = 500, offset = 0):
         return_val.append(new_m)
     return return_val
 
-def loadMessages(id, num = 500, offset = 0):
+def loadMessages(id, num = default_num_chats, offset = 0):
     global total_messages_height
     updateHbox('loading messages. please wait...')
     messages = getMessages(id, num, offset)
@@ -215,13 +236,16 @@ def getTboxText():
 
     return whole_string
 
-def sendTextCmd():
+def sendTextCmd(cmd):
     global current_chat_id
     if current_chat_id == '':
         updateHbox('you have not selected a conversation. please do so before attempting to send texts')
         return
-    updateHbox('please enter the content of your text! note that as soon as you hit enter, the text will be sent :)')
-    new_text = getTextText()
+    if cmd.rstrip() in (':s', ':S', 'send'):
+        updateHbox('please enter the content of your text! note that as soon as you hit enter, the text will be sent :)')
+        new_text = getTextText()
+    else:
+        new_text = cmd[3:]
     if new_text == '':
         updateHbox('cancelled; text was not sent.')
         return
@@ -317,11 +341,11 @@ def displayHelp():
 
     help_box = curses.newpad(text_rows + 0, help_width - 2)
     top_offset = 0
-    for l in help_message:
-        aval_rows = wrap(l, help_width - 2)
-        for n, r in enumerate(aval_rows):
+    for n, l in enumerate(help_message):
+        aval_rows = wrap(l, help_width - 2 - help_inset)
+        for r in aval_rows:
             try:
-                help_box.addstr(top_offset, 0, r if n == 0 else '     ' + r)
+                help_box.addstr(top_offset, 0, r if n % 2 == 1 or n == 0 else ' '*help_inset + r)
             except:
                 pass
             top_offset += 1
@@ -353,6 +377,8 @@ def displayHelp():
     switchSelected()
     switchSelected()
 
+    updateHbox('enter a command, or type :h to get help!')
+
 def pingServer():
     global end_all
     req_string = 'http://' + ip + ':' + port + '/' + req + '?x'
@@ -371,17 +397,17 @@ def mainTask():
     global end_all
     while not end_all:
         cmd = getTboxText()
-        if cmd == ':s' or cmd == 'send':
-            sendTextCmd()
-        elif ':c' == cmd[:2]:
+        if cmd[:2] in (':s', ':S') or cmd[:4] == 'send':
+            sendTextCmd(cmd)
+        elif cmd[:2] in (':c', ':C') or cmd[:4] == 'chat':
             selectChat(cmd)
-        elif cmd == ':f' or cmd == 'flip':
+        elif cmd in (':f', ':F', 'flip'):
             switchSelected()
-        elif cmd == ':r' or cmd == 'reload':
+        elif cmd in (':r', ':R', 'reload'):
             reloadChats()
-        elif cmd in (':h', ':H'):
+        elif cmd in (':h', ':H', 'help'):
             displayHelp()
-        elif cmd == ':q' or cmd == 'exit' or cmd == 'quit':
+        elif cmd in (':q', 'exit', 'quit'):
             break
         else:
             updateHbox('sorry, that command isn\'t supported :(')
@@ -396,7 +422,7 @@ def main():
     pool.apply_async(mainTask)
 
     while not end_all:
-        sleep(0.5)
+        sleep(poll_exit)
     
     pool.terminate()
 
