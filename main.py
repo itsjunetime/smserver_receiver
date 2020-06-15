@@ -213,11 +213,12 @@ def refreshMBox(down = mbox_offset):
     mbox.refresh(total_messages_height - down - messages_height, 0, 1, chats_width + 2, t_y - 2, cols - 2)
 
 def getTboxText():
+    global t_width
     tbox.addstr(1, 1, ' '*(t_width - 2))
     tbox.refresh()
     whole_string = ''
     while True:
-        ch = tbox.getch(1, 1 + len(whole_string))
+        ch = tbox.getch(1, 1 + min(len(whole_string), t_width - 3))
         # KEY_UP and KEY_DOWN still don't work
         if chr(ch) in ('j', 'J', '^[B') or ch in (279166, curses.KEY_DOWN):
             scrollDown()
@@ -229,9 +230,12 @@ def getTboxText():
             break
         elif ch in (127, curses.KEY_BACKSPACE):
             whole_string = whole_string[:len(whole_string) - 1]
-            tbox.addstr(1, 1 + len(whole_string), ' ')
+            tbox.addstr(1, 1, whole_string[max(len(whole_string) - t_width + 2, 0):] + ' '*max((t_width - len(whole_string) - 2), 0))
         else: 
-            tbox.addstr(1, 1 + len(whole_string), chr(ch))
+            if len(whole_string) < t_width - 2:
+                tbox.addstr(1, 1 + len(whole_string), chr(ch))
+            else:
+                tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 2:])
             whole_string += chr(ch)
 
     return whole_string
