@@ -170,8 +170,26 @@ def refreshMBox(down = 0):
 def getTboxText():
     tbox.addstr(1, 1, ' '*(t_width - 2))
     tbox.refresh()
-    string = str(screen.getstr(t_y + 1, t_x + 1))
-    return string[2:len(string) - 1]
+    whole_string = ''
+    while True:
+        ch = tbox.getch(1, 1 + len(whole_string))
+        # KEY_UP and KEY_DOWN still don't work
+        if chr(ch) in ('j', 'J', '^[B') or ch in (279166, curses.KEY_DOWN):
+            scrollDown()
+        elif chr(ch) in ('k', 'K', '^[A') or ch in (279165, curses.KEY_UP):
+            scrollUp()
+        elif chr(ch) in ('l', 'L', 'h', 'H'):
+            switchSelected()
+        elif ch in (10, curses.KEY_ENTER):
+            break
+        elif ch in (127, curses.KEY_BACKSPACE):
+            whole_string = whole_string[:len(whole_string) - 1]
+            tbox.addstr(1, 1 + len(whole_string), ' ')
+        else: 
+            tbox.addstr(1, 1 + len(whole_string), chr(ch))
+            whole_string += chr(ch)
+
+    return whole_string
 
 def sendTextCmd():
     global current_chat_id
@@ -235,16 +253,18 @@ chats = getChats()
 
 screen = curses.initscr()
 
+curses.noecho()
 curses.cbreak()
 curses.start_color()
 curses.use_default_colors()
 
+# pylint: disable=fixme, no-member
 rows = curses.LINES
 cols = curses.COLS
 
 curses.init_pair(1, 75, -1)
 curses.init_pair(2, curses.COLOR_BLUE, -1)
-curses.init_pair(3, 248, -1) # Should be like light gray?
+curses.init_pair(3, 248, -1)
 curses.init_pair(4, curses.COLOR_WHITE, -1)
 curses.init_pair(5, 219, -1)
 
@@ -280,7 +300,7 @@ cbox_wrapper.box()
 cbox_wrapper.addstr(0, title_offset, chats_title)
 cbox_wrapper.attron(curses.color_pair(4))
 cbox_wrapper.refresh()
-cbox = curses.newpad(chats_height - 2, chats_width - 2) # Originally didn't have the -2 s. Get rid of them if problems.
+cbox = curses.newpad(chats_height - 2, chats_width - 2)
 cbox.scrollok(True)
 
 mbox_wrapper = curses.newwin(messages_height, messages_width, messages_y, messages_x)
@@ -307,19 +327,15 @@ screen.refresh()
 
 while True:
     cmd = getTboxText()
-    if cmd == ':s':
+    if cmd == ':s' or cmd == 'send':
         sendTextCmd()
     elif ':c' == cmd[:2]:
         selectChat(cmd)
-    elif cmd == ':k':
-        scrollUp()
-    elif cmd == ':j':
-        scrollDown()
-    elif cmd == ':f':
+    elif cmd == ':f' or cmd == 'flip':
         switchSelected()
-    elif cmd == ':r':
+    elif cmd == ':r' or cmd == 'reload':
         reloadChats()
-    elif cmd == ':q':
+    elif cmd == ':q' or cmd == 'exit' or cmd == 'quit':
         break
     else:
         updateHbox('sorry, that command isn\'t supported :(')
