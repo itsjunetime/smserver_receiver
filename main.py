@@ -4,21 +4,31 @@ from textwrap import wrap
 from time import sleep
 from multiprocessing.pool import ThreadPool
 
+# The private IP of your host device
 ip = '192.168.50.10'
+# The port on which your server is running 
 port = '8741'
+# Don't change this unless you actually know what you're doing and what this is used for.
 req = 'requests'
+# How many lines you'll scroll down/up in chats/messages boxes, respectively
 chats_scroll_factor = 2
 messages_scroll_factor = 5
+# Character to indicate what conversation you currently have selected. Should only be one or two characters.
 current_chat_indicator = '>'
+# Strings to define underline of messages
 my_chat_end = '╲▏'
 their_chat_end = '▕╱'
 chat_underline = '▔'
+# Top padding for conversation list in leftmost (conversation) box
 chat_vertical_offset = 1
+# Left padding for each box's title
 title_offset = 5
+# Title for each of the boxes
 chats_title = '| chats |'
 messages_title = '| messages |'
 input_title = '| input here :) |'
 help_title = '| help |'
+# Left padding for help strings
 help_inset = 5
 help_message = ['COMMANDS:',
 ':h, :H, help - ',
@@ -36,8 +46,11 @@ help_message = ['COMMANDS:',
 ':q, exit, quit - ',
 'exits the window, cleaning up. recommended over ctrl+c.',
 'If characters are not appearing, or the program is acting weird, just type a bunch of random characters and hit enter.']
+# How frequently (in seconds) you want the script to ping the server to see if there are any messages
 ping_interval = 60
+# How frequently, in seconds, you want the script to check if the sscript has initiated shut down
 poll_exit = 0.5
+# How many messages you want to load when you first select a chat
 default_num_chats = 500
 
 print('Loading ...')
