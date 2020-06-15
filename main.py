@@ -1,5 +1,4 @@
 import curses
-# import json
 import requests
 import textwrap
 
@@ -17,6 +16,17 @@ title_offset = 5
 chats_title = '| chats |'
 messages_title = '| messages |'
 input_title = '| input here :) |'
+help_title = '| help |'
+help_message = ['COMMANDS:',
+':h - displays this help message',
+':s - starts the process for sending a text with the currently selected conversation.',
+'    after you hit enter on \':s\', You will then be able to input the content of your text, and hit <enter> once you are ready to send it.',
+':c - this should be immediately followed by a number, specifically the index of the conversation whose texts you want to view.',
+'     the indices are displayed to the left of each conversation in the leftmost box. eg \':c 25\'',
+'j -  scrolls down in the selected window',
+'k -  scrolls up in the selected window',
+':f, h, l - switches selected window',
+':q, exit, quit - exits the window, cleaning up. recommended over ctrl+c.']
 
 print('Loading ...')
 
@@ -157,12 +167,12 @@ def loadMessages(id, num = 500, offset = 0):
     refreshMBox()
     updateHbox('loaded Messages!')
 
-def refreshCBox(down = 0):
+def refreshCBox(down = cbox_offset):
     if down < 0:
         return
     cbox.refresh(down, 0, 1, 1, t_y - 2, chats_width - 2)
 
-def refreshMBox(down = 0):
+def refreshMBox(down = mbox_offset):
     if down < 0:
         return
     mbox.refresh(total_messages_height - down - messages_height, 0, 1, chats_width + 2, t_y - 2, cols - 2)
@@ -178,7 +188,7 @@ def getTboxText():
             scrollDown()
         elif chr(ch) in ('k', 'K', '^[A') or ch in (279165, curses.KEY_UP):
             scrollUp()
-        elif chr(ch) in ('l', 'L', 'h', 'H'):
+        elif chr(ch) in ('l', 'L', 'h', 'H') and len(whole_string) == 0:
             switchSelected()
         elif ch in (10, curses.KEY_ENTER):
             break
@@ -249,6 +259,60 @@ def scrollDown():
         cbox_offset += chats_scroll_factor if cbox_offset < chats_height else 0
         refreshCBox(cbox_offset)
 
+def displayHelp():
+    updateHbox('displaying help')
+
+    curses.noecho()
+
+    help_height = int(rows * 0.6)
+    help_width = int(cols * 0.6)
+    help_x = int((cols - help_width) / 2)
+    help_y = int((rows - help_height) / 2)
+    help_offset = 0
+
+    text_rows = sum(len(textwrap.wrap(l, help_width - 2)) for l in help_message)
+
+    hbox_wrapper = curses.newwin(help_height, help_width, help_y, help_x)
+    hbox_wrapper.attron(curses.color_pair(1))
+    hbox_wrapper.box()
+    hbox_wrapper.addstr(0, title_offset, help_title)
+    hbox_wrapper.attron(curses.color_pair(4))
+    hbox_wrapper.refresh()
+
+    help_box = curses.newpad(text_rows + 0, help_width - 2)
+    top_offset = 0
+    for l in help_message:
+        aval_rows = textwrap.wrap(l, help_width - 2)
+        for r in aval_rows:
+            try:
+                help_box.addstr(top_offset, 0, r)
+            except:
+                pass
+            top_offset += 1
+
+    help_box.refresh(help_offset, 0, help_y + 1, help_x + 1, help_y + help_height - 2, help_x + help_width - 2)
+
+    while True:
+        c = screen.getch()
+        if chr(c) in ('j', 'J'):
+            help_offset += 1 if help_offset < text_rows - help_height + 2 else 0
+            help_box.refresh(help_offset, 0, help_y + 1, help_x + 1, help_y + help_height - 2, help_x + help_width - 1)
+        elif chr(c) in ('k', 'K'):
+            help_offset -= 1 if help_offset > 0 else 0
+            help_box.refresh(help_offset, 0, help_y + 1, help_x + 1, help_y + help_height - 2, help_x + help_width - 2)
+        elif chr(c) in ('q', 'Q'):
+            break
+    
+    hbox_wrapper.clear()
+    hbox_wrapper.refresh()
+    help_box.clear()
+    help_box.refresh(0, 0, 0, 0, 0, 0)
+    del hbox_wrapper
+    del help_box
+
+    switchSelected()
+    switchSelected()
+            
 chats = getChats()
 
 screen = curses.initscr()
@@ -337,6 +401,8 @@ while True:
         reloadChats()
     elif cmd == ':q' or cmd == 'exit' or cmd == 'quit':
         break
+    elif cmd in (':h', ':H'):
+        displayHelp()
     else:
         updateHbox('sorry, that command isn\'t supported :(')
 
