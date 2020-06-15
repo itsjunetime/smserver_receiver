@@ -15,10 +15,10 @@ their_chat_end = '▕╱'
 chat_underline = '▔'
 chat_vertical_offset = 1
 title_offset = 5
-chats_title = '< chats >'
-messages_title = '< messages >'
-input_title = '< input here :) >'
-help_title = '< help >'
+chats_title = '| chats |'
+messages_title = '| messages |'
+input_title = '| input here :) |'
+help_title = '| help |'
 help_message = ['COMMANDS:',
 ':h - displays this help message',
 ':s - starts the process for sending a text with the currently selected conversation.',
@@ -72,6 +72,7 @@ total_messages_height = 0
 selected_box = 'c' # Gonna be 'm' or 'c', between cbox and mbox.
 
 end_all = False
+displaying_help = False
 
 def getChats(num = 30):
     req_string = 'http://' + ip + ':' + port + '/' + req + '?c'
@@ -109,6 +110,9 @@ def reloadChats():
     loadInChats()
     screen.refresh()
     updateHbox('reloaded chats!')
+
+    if displaying_help:
+        displayHelp()
 
 def selectChat(cmd):
     global current_chat_index
@@ -232,6 +236,8 @@ def getTextText():
         elif ch in (127, curses.KEY_BACKSPACE):
             whole_string = whole_string[:len(whole_string) - 1]
             tbox.addstr(1, 1 + len(whole_string), ' ')
+        elif ch in (10, curses.KEY_ENTER):
+            return whole_string
         else:
             tbox.addstr(1, 1 + len(whole_string), chr(ch))
             whole_string += chr(ch)
@@ -267,7 +273,7 @@ def scrollUp():
     global mbox_offset
     global cbox_offset
     if selected_box == 'm':
-        mbox_offset += messages_scroll_factor if mbox_offset < messages_height - 4 else 0
+        mbox_offset += messages_scroll_factor if mbox_offset < total_messages_height else 0
         refreshMBox(mbox_offset)
     else:
         cbox_offset -= chats_scroll_factor if cbox_offset > 0 else 0
@@ -285,6 +291,7 @@ def scrollDown():
         refreshCBox(cbox_offset)
 
 def displayHelp():
+    global displaying_help
     updateHbox('displaying help')
 
     curses.noecho()
@@ -295,7 +302,7 @@ def displayHelp():
     help_y = int((rows - help_height) / 2)
     help_offset = 0
 
-    text_rows = sum(len(textwrap.wrap(l, help_width - 2)) for l in help_message)
+    text_rows = sum(len(wrap(l, help_width - 2)) for l in help_message)
 
     hbox_wrapper = curses.newwin(help_height, help_width, help_y, help_x)
     hbox_wrapper.attron(curses.color_pair(1))
@@ -307,7 +314,7 @@ def displayHelp():
     help_box = curses.newpad(text_rows + 0, help_width - 2)
     top_offset = 0
     for l in help_message:
-        aval_rows = textwrap.wrap(l, help_width - 2)
+        aval_rows = wrap(l, help_width - 2)
         for r in aval_rows:
             try:
                 help_box.addstr(top_offset, 0, r)
@@ -316,6 +323,8 @@ def displayHelp():
             top_offset += 1
 
     help_box.refresh(help_offset, 0, help_y + 1, help_x + 1, help_y + help_height - 2, help_x + help_width - 2)
+
+    displaying_help = True
 
     while True:
         c = screen.getch()
@@ -334,6 +343,8 @@ def displayHelp():
     help_box.refresh(0, 0, 0, 0, 0, 0)
     del hbox_wrapper
     del help_box
+
+    displaying_help = False
 
     switchSelected()
     switchSelected()
