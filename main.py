@@ -3,6 +3,7 @@ from requests import get
 from textwrap import wrap
 from time import sleep
 from multiprocessing.pool import ThreadPool
+from os import system
 
 # The private IP of your host device
 ip = '192.168.50.10'
@@ -52,6 +53,8 @@ ping_interval = 60
 poll_exit = 0.5
 # How many messages you want to load when you first select a chat
 default_num_chats = 500
+# Buggy mode! Allows more versatile active text editing but sometimes makes things look weird and doesn't work perfectly; it's up to you :)
+buggy_mode = True
 
 print('Loading ...')
 
@@ -230,26 +233,46 @@ def getTboxText():
     tbox.addstr(1, 1, ' '*(t_width - 2))
     tbox.refresh()
     whole_string = ''
+    right_offset = 0
+    
+    # This whole section is a nightmare. But it works
     while True:
-        ch = tbox.getch(1, 1 + min(len(whole_string), t_width - 3))
-        # KEY_UP and KEY_DOWN still don't work
-        if chr(ch) in ('j', 'J', '^[B') or ch in (279166, curses.KEY_DOWN):
+        ch = tbox.getch(1, 1 + min(len(whole_string) - right_offset, t_width - 2))
+        if (chr(ch) in ('j', 'J', '^[B') and len(whole_string) == 0) or ch in (curses.KEY_DOWN,):
             scrollDown()
-        elif chr(ch) in ('k', 'K', '^[A') or ch in (279165, curses.KEY_UP):
+        elif (chr(ch) in ('k', 'K', '^[A') and len(whole_string) == 0) or ch in (curses.KEY_UP,):
             scrollUp()
-        elif chr(ch) in ('l', 'L', 'h', 'H') and len(whole_string) == 0:
+        elif (chr(ch) in ('l', 'L', 'h', 'H') and len(whole_string) == 0) or (not buggy_mode and ch in (curses.KEY_LEFT, curses.KEY_RIGHT)):
             switchSelected()
         elif ch in (10, curses.KEY_ENTER):
             break
         elif ch in (127, curses.KEY_BACKSPACE):
-            whole_string = whole_string[:len(whole_string) - 1]
-            tbox.addstr(1, 1, whole_string[max(len(whole_string) - t_width + 2, 0):] + ' '*max((t_width - len(whole_string) - 2), 0))
-        else: 
-            if len(whole_string) < t_width - 2:
-                tbox.addstr(1, 1 + len(whole_string), chr(ch))
+            if buggy_mode:
+                if right_offset == 0:
+                    whole_string = whole_string[:len(whole_string) - 1]
+                else:
+                    whole_string = whole_string[:len(whole_string) - right_offset - 1] + whole_string[len(whole_string) - right_offset:]
+                tbox.addstr(1, 1, whole_string + ' '*max((t_width - len(whole_string) - 2), 0))
             else:
-                tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 2:])
-            whole_string += chr(ch)
+                whole_string = whole_string[:len(whole_string) - 1]
+                tbox.addstr(1, len(whole_string) + 1, ' ')
+        elif ch in (curses.KEY_LEFT,) and buggy_mode:
+            right_offset += 1 if right_offset != len(whole_string) else 0
+        elif ch in (curses.KEY_RIGHT,) and buggy_mode:
+            right_offset -= 1 if right_offset > 0 else 0
+        elif len(chr(ch)) == 1: 
+            if buggy_mode:
+                if right_offset == 0:
+                    whole_string += chr(ch)
+                else:
+                    whole_string = whole_string[:len(whole_string) - right_offset] + chr(ch) + whole_string[len(whole_string) - right_offset:]
+                if len(whole_string) < t_width - 2:
+                    tbox.addstr(1, 1, whole_string)
+                else:
+                    tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 2:])
+            else:
+                tbox.addstr(1, len(whole_string) + 1, chr(ch))
+                whole_string += chr(ch)
 
     return whole_string
 
@@ -274,19 +297,40 @@ def getTextText():
     tbox.addstr(1, 1, ' '*(t_width - 2))
     tbox.refresh()
     whole_string = ''
+    right_offset = 0
     while True:
-        ch = tbox.getch(1, 1)
-        if ch in (27, curses.KEY_CANCEL):
-            return ''
-        elif ch in (127, curses.KEY_BACKSPACE):
-            whole_string = whole_string[:len(whole_string) - 1]
-            tbox.addstr(1, 1 + len(whole_string), ' ')
-        elif ch in (10, curses.KEY_ENTER):
+        ch = tbox.getch(1, 1 + len(whole_string) - right_offset)
+        if ch in (10, curses.KEY_ENTER):
             return whole_string
-        else:
-            tbox.addstr(1, 1 + len(whole_string), chr(ch))
-            whole_string += chr(ch)
-            tbox.move(1, 1 + len(whole_string))
+        elif ch in (127, curses.KEY_BACKSPACE):
+            if buggy_mode:
+                if right_offset == 0:
+                    whole_string = whole_string[:len(whole_string) - 1]
+                else:
+                    whole_string = whole_string[:len(whole_string) - right_offset - 1] + whole_string[len(whole_string) - right_offset:]
+                tbox.addstr(1, 1, whole_string + ' '*max((t_width - len(whole_string) - 2), 0))
+            else:
+                whole_string = whole_string[:len(whole_string) - 1]
+                tbox.addstr(1, len(whole_string) + 1, ' ')
+        elif ch in (curses.KEY_LEFT,) and buggy_mode:
+            right_offset += 1 if right_offset != len(whole_string) else 0
+        elif ch in (curses.KEY_RIGHT,) and buggy_mode:
+            right_offset -= 1 if right_offset > 0 else 0
+        elif ch in (27, curses.KEY_CANCEL):
+            return ''
+        elif len(chr(ch)) == 1: 
+            if buggy_mode:
+                if right_offset == 0:
+                    whole_string += chr(ch)
+                else:
+                    whole_string = whole_string[:len(whole_string) - right_offset] + chr(ch) + whole_string[len(whole_string) - right_offset:]
+                if len(whole_string) < t_width - 2:
+                    tbox.addstr(1, 1, whole_string)
+                else:
+                    tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 2:])
+            else:
+                tbox.addstr(1, len(whole_string) + 1, chr(ch))
+                whole_string += chr(ch)
 
 def updateHbox(string):
     hbox.clear()
@@ -397,8 +441,9 @@ def displayHelp():
     updateHbox('enter a command, or type :h to get help!')
 
 def pingServer():
+    global chats
     global end_all
-    req_string = 'http://' + ip + ':' + port + '/' + req + '?x'
+    req_string = 'http://' + ip + ':' + port + '/' + req + '?x' 
     while not end_all:
         sleep(ping_interval)
         try:
@@ -409,6 +454,9 @@ def pingServer():
             exit()
         if len(new_chats) != 0:
             reloadChats()
+            if current_chat_id in new_chats:
+                loadMessages(current_chat_id)
+            system('notify-send "you got new texts!"')
 
 def mainTask():
     global end_all
@@ -427,7 +475,7 @@ def mainTask():
         elif cmd in (':q', 'exit', 'quit'):
             break
         else:
-            updateHbox('sorry, that command isn\'t supported :(')
+            updateHbox('sorry, this command isn\'t supported (%s)' % cmd)
     
     updateHbox('exiting...')
     end_all = True
@@ -511,6 +559,7 @@ mbox.scrollok(True)
 tbox = curses.newwin(t_height, t_width, t_y, t_x)
 tbox.box()
 tbox.addstr(0, title_offset, input_title)
+tbox.keypad(1)
 tbox.refresh()
 
 hbox = curses.newwin(h_height, h_width, h_y, h_x)
