@@ -53,8 +53,8 @@ ping_interval = 60
 poll_exit = 0.5
 # How many messages you want to load when you first select a chat
 default_num_chats = 500
-# Buggy mode! Allows more versatile active text editing but sometimes makes things look weird and doesn't work perfectly; it's up to you :)
-buggy_mode = True
+# Buggy mode! Allows more versatile active text editing but sometimes makes things look weird and doesn't work perfectly; I'd recommend not using it but it's up to you. 
+buggy_mode = False
 
 print('Loading ...')
 
