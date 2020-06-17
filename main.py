@@ -4,6 +4,7 @@ from textwrap import wrap
 from time import sleep
 from multiprocessing.pool import ThreadPool
 from os import system
+import locale
 
 # The private IP of your host device
 ip = '192.168.50.10'
@@ -54,7 +55,7 @@ poll_exit = 0.5
 # How many messages you want to load when you first select a chat
 default_num_chats = 500
 # Buggy mode! Allows more versatile active text editing but sometimes makes things look weird and doesn't work perfectly; I'd recommend not using it but it's up to you. 
-buggy_mode = False
+buggy_mode = True
 
 print('Loading ...')
 
@@ -105,6 +106,8 @@ selected_box = 'c' # Gonna be 'm' or 'c', between cbox and mbox.
 
 end_all = False
 displaying_help = False
+
+locale.setlocale(locale.LC_ALL, '')
 
 def getChats(num = 30):
     req_string = 'http://' + ip + ':' + port + '/' + req + '?c'
@@ -543,7 +546,15 @@ screen.refresh()
 cbox_wrapper = curses.newwin(cbox_wrapper_height, chats_width, chats_y, chats_x)
 cbox_wrapper.attron(curses.color_pair(1))
 cbox_wrapper.box()
+# corner = u'\u256d'
+# cbox_wrapper.border(0, 0, 0, 0, str(corner[0]), 0, 0, 0)
 cbox_wrapper.addstr(0, title_offset, chats_title)
+# cbox_wrapper.addstr(0, 0, u'\u256d')
+# cbox_wrapper.addstr(0, chats_width - 1, u'\u256e')
+# cbox_wrapper.addstr(t_y - 1, chats_width - 1, u'\u256f'[0])
+# cbox_wrapper.addnstr(t_y - 1, chats_width - 1, '╯', 1)
+# cbox_wrapper.addstr(t_y - 1, 0, u'\u2570')
+
 cbox_wrapper.attron(curses.color_pair(4))
 cbox_wrapper.refresh()
 cbox = curses.newpad(chats_height - 2, chats_width - 2)
