@@ -113,7 +113,7 @@ def getChats(num = default_num_chats):
     # req_string = 'http://' + ip + ':' + port + '/' + req + '?chat=0&num=' + num
     req_string = 'http://192.168.50.10:8741/requests?chat=0&num=50'
     # locale.setlocale(locale.LC_ALL, '')
-    
+
     new_chats = get(req_string)
     new_json = new_chats.json()
     chat_items = new_json['chats']
@@ -242,7 +242,7 @@ def getTboxText():
     whole_string = ''
     right_offset = 0
     
-    # This whole section is a nightmare. But it works
+    # This whole section is a nightmare. But it still doesn't work. 
     while True:
         ch = tbox.getch(1, min(1 + len(whole_string) - right_offset, t_width - 2) if len(whole_string) < t_width - 2 else t_width - 2 - right_offset)
         if (chr(ch) in ('j', 'J', '^[B') and len(whole_string) == 0) or ch in (curses.KEY_DOWN,):
