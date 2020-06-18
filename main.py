@@ -4,6 +4,7 @@ from textwrap import wrap
 from time import sleep
 from multiprocessing.pool import ThreadPool
 import os
+# import locale
 
 # The private IP of your host device
 ip = '192.168.50.10'
@@ -111,6 +112,8 @@ displaying_help = False
 def getChats(num = default_num_chats):
     # req_string = 'http://' + ip + ':' + port + '/' + req + '?chat=0&num=' + num
     req_string = 'http://192.168.50.10:8741/requests?chat=0&num=50'
+    # locale.setlocale(locale.LC_ALL, '')
+    
     new_chats = get(req_string)
     new_json = new_chats.json()
     chat_items = new_json['chats']
@@ -122,6 +125,7 @@ def getChats(num = default_num_chats):
     return return_val
 
 def loadInChats():
+
     cbox.clear()
     for n, c in enumerate(chats, 0):
         d_name = c.display_name if c.display_name != '' else c.chat_id
@@ -240,7 +244,7 @@ def getTboxText():
     
     # This whole section is a nightmare. But it works
     while True:
-        ch = tbox.getch(1, 1 + min(len(whole_string) - right_offset, t_width - 2))
+        ch = tbox.getch(1, min(1 + len(whole_string) - right_offset, t_width - 2) if len(whole_string) < t_width - 2 else t_width - 2 - right_offset)
         if (chr(ch) in ('j', 'J', '^[B') and len(whole_string) == 0) or ch in (curses.KEY_DOWN,):
             scrollDown()
         elif (chr(ch) in ('k', 'K', '^[A') and len(whole_string) == 0) or ch in (curses.KEY_UP,):
@@ -248,34 +252,35 @@ def getTboxText():
         elif (chr(ch) in ('l', 'L', 'h', 'H') and len(whole_string) == 0) or (not buggy_mode and ch in (curses.KEY_LEFT, curses.KEY_RIGHT)):
             switchSelected()
         elif ch in (10, curses.KEY_ENTER):
-            break
+            return whole_string
         elif ch in (127, curses.KEY_BACKSPACE):
             if buggy_mode:
                 if right_offset == 0:
                     whole_string = whole_string[:len(whole_string) - 1]
                 else:
                     whole_string = whole_string[:len(whole_string) - right_offset - 1] + whole_string[len(whole_string) - right_offset:]
-                tbox.addstr(1, 1, whole_string + ' '*max((t_width - len(whole_string) - 2), 0))
+                
+                tbox.addstr(1, 1, str(whole_string + ' '*max((t_width - len(whole_string) - 3), 0))[max((len(whole_string) - t_width + 3), 0):])
             else:
                 whole_string = whole_string[:len(whole_string) - 1]
-                tbox.addstr(1, len(whole_string) + 1, ' ')
+                if len(whole_string) > t_width - 2:
+                    tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 1:])
+                else:
+                    tbox.addstr(1, len(whole_string) + 1, ' ')
         elif ch in (curses.KEY_LEFT,) and buggy_mode:
             right_offset += 1 if right_offset != len(whole_string) else 0
         elif ch in (curses.KEY_RIGHT,) and buggy_mode:
             right_offset -= 1 if right_offset > 0 else 0
         elif len(chr(ch)) == 1: 
-            if buggy_mode:
-                if right_offset == 0:
-                    whole_string += chr(ch)
-                else:
-                    whole_string = whole_string[:len(whole_string) - right_offset] + chr(ch) + whole_string[len(whole_string) - right_offset:]
-                if len(whole_string) < t_width - 2:
-                    tbox.addstr(1, 1, whole_string)
-                else:
-                    tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 2:])
+            if buggy_mode and right_offset != 0:
+                whole_string = whole_string[:len(whole_string) - right_offset] + chr(ch) + whole_string[len(whole_string) - right_offset:]
             else:
-                tbox.addstr(1, len(whole_string) + 1, chr(ch))
                 whole_string += chr(ch)
+            
+            if len(whole_string) < t_width - 2:
+                tbox.addstr(1, 1, whole_string)
+            else:
+                tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 3:])
 
     return whole_string
 
@@ -296,14 +301,18 @@ def sendTextCmd(cmd):
     get(req_string)
     updateHbox('text sent!')
 
+# There are still definitely some issues with text handling so uh do that thing first
+
 def getTextText():
     tbox.addstr(1, 1, ' '*(t_width - 2))
     tbox.refresh()
     whole_string = ''
     right_offset = 0
     while True:
-        ch = tbox.getch(1, 1 + len(whole_string) - right_offset)
-        if ch in (10, curses.KEY_ENTER):
+        ch = tbox.getch(1, min(1 + len(whole_string) - right_offset, t_width - 2) if len(whole_string) < t_width - 2 else t_width - 2 - right_offset)
+        if ch in (27, curses.KEY_CANCEL):
+            return ''
+        elif ch in (10, curses.KEY_ENTER):
             return whole_string
         elif ch in (127, curses.KEY_BACKSPACE):
             if buggy_mode:
@@ -311,29 +320,28 @@ def getTextText():
                     whole_string = whole_string[:len(whole_string) - 1]
                 else:
                     whole_string = whole_string[:len(whole_string) - right_offset - 1] + whole_string[len(whole_string) - right_offset:]
-                tbox.addstr(1, 1, whole_string + ' '*max((t_width - len(whole_string) - 2), 0))
+                
+                tbox.addstr(1, 1, str(whole_string + ' '*max((t_width - len(whole_string) - 3), 0))[max((len(whole_string) - t_width + 3), 0):])
             else:
                 whole_string = whole_string[:len(whole_string) - 1]
-                tbox.addstr(1, len(whole_string) + 1, ' ')
+                if len(whole_string) > t_width - 2:
+                    tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 1:])
+                else:
+                    tbox.addstr(1, len(whole_string) + 1, ' ')
         elif ch in (curses.KEY_LEFT,) and buggy_mode:
             right_offset += 1 if right_offset != len(whole_string) else 0
         elif ch in (curses.KEY_RIGHT,) and buggy_mode:
             right_offset -= 1 if right_offset > 0 else 0
-        elif ch in (27, curses.KEY_CANCEL):
-            return ''
         elif len(chr(ch)) == 1: 
-            if buggy_mode:
-                if right_offset == 0:
-                    whole_string += chr(ch)
-                else:
-                    whole_string = whole_string[:len(whole_string) - right_offset] + chr(ch) + whole_string[len(whole_string) - right_offset:]
-                if len(whole_string) < t_width - 2:
-                    tbox.addstr(1, 1, whole_string)
-                else:
-                    tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 2:])
+            if buggy_mode and right_offset != 0:
+                whole_string = whole_string[:len(whole_string) - right_offset] + chr(ch) + whole_string[len(whole_string) - right_offset:]
             else:
-                tbox.addstr(1, len(whole_string) + 1, chr(ch))
                 whole_string += chr(ch)
+            
+            if len(whole_string) < t_width - 2:
+                tbox.addstr(1, 1, whole_string)
+            else:
+                tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 3:])
 
 def updateHbox(string):
     hbox.clear()
@@ -478,7 +486,7 @@ def mainTask():
         elif cmd in (':q', 'exit', 'quit'):
             break
         else:
-            updateHbox('sorry, this command isn\'t supported (%s)' % cmd)
+            updateHbox('sorry, this command isn\'t supported .')
     
     updateHbox('exiting...')
     end_all = True
@@ -546,7 +554,15 @@ screen.refresh()
 cbox_wrapper = curses.newwin(cbox_wrapper_height, chats_width, chats_y, chats_x)
 cbox_wrapper.attron(curses.color_pair(1))
 cbox_wrapper.box()
+# corner = u'\u256d'
+# cbox_wrapper.border(0, 0, 0, 0, str(corner[0]), 0, 0, 0)
 cbox_wrapper.addstr(0, title_offset, chats_title)
+# cbox_wrapper.addstr(0, 0, u'\u256d')
+# cbox_wrapper.addstr(0, chats_width - 1, u'\u256e')
+# cbox_wrapper.addstr(t_y - 1, chats_width - 1, u'\u256f'[0])
+# cbox_wrapper.addnstr(t_y - 1, chats_width - 1, '╯', 1)
+# cbox_wrapper.addstr(t_y - 1, 0, u'\u2570')
+
 cbox_wrapper.attron(curses.color_pair(4))
 cbox_wrapper.refresh()
 cbox = curses.newpad(chats_height - 2, chats_width - 2)
