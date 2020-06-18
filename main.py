@@ -3,7 +3,7 @@ from requests import get
 from textwrap import wrap
 from time import sleep
 from multiprocessing.pool import ThreadPool
-from os import system
+import os
 
 # The private IP of your host device
 ip = '192.168.50.10'
@@ -51,8 +51,10 @@ help_message = ['COMMANDS:',
 ping_interval = 60
 # How frequently, in seconds, you want the script to check if the sscript has initiated shut down
 poll_exit = 0.5
-# How many messages you want to load when you first select a chat
-default_num_chats = 500
+# How many messages you want to load when you first select a chat. Set to 0 if you want to load all. Could be very slow.
+default_num_messages = 500
+# How many chats you want to load when you first start the app. Set to 0 if you want to load all. Could be very slow.
+default_num_chats = 0
 # Buggy mode! Allows more versatile active text editing but sometimes makes things look weird and doesn't work perfectly; I'd recommend not using it but it's up to you. 
 buggy_mode = False
 
@@ -106,8 +108,9 @@ selected_box = 'c' # Gonna be 'm' or 'c', between cbox and mbox.
 end_all = False
 displaying_help = False
 
-def getChats(num = 30):
-    req_string = 'http://' + ip + ':' + port + '/' + req + '?c'
+def getChats(num = default_num_chats):
+    # req_string = 'http://' + ip + ':' + port + '/' + req + '?chat=0&num=' + num
+    req_string = 'http://192.168.50.10:8741/requests?chat=0&num=50'
     new_chats = get(req_string)
     new_json = new_chats.json()
     chat_items = new_json['chats']
@@ -170,9 +173,9 @@ def selectChat(cmd):
     current_chat_index = num
     loadMessages(current_chat_id, single_width)
 
-def getMessages(id, num = default_num_chats, offset = 0):
+def getMessages(id, num = default_num_messages, offset = 0):
     global single_width
-    req_string = 'http://' + ip + ':' + port + '/' + req + '?p=' + id + '&n=' + str(num)
+    req_string = 'http://' + ip + ':' + port + '/' + req + '?person=' + id + '&num=' + str(num)
     new_messages = get(req_string)
     new_json = new_messages.json()
     message_items = new_json['texts']
@@ -182,7 +185,7 @@ def getMessages(id, num = default_num_chats, offset = 0):
         return_val.append(new_m)
     return return_val
 
-def loadMessages(id, num = default_num_chats, offset = 0):
+def loadMessages(id, num = default_num_messages, offset = 0):
     global total_messages_height
     updateHbox('loading messages. please wait...')
     messages = getMessages(id, num, offset)
@@ -289,7 +292,7 @@ def sendTextCmd(cmd):
     if new_text == '':
         updateHbox('cancelled; text was not sent.')
         return
-    req_string = 'http://' + ip + ':' + port + '/' + req + '?s=' + new_text + '&t=' + current_chat_id
+    req_string = 'http://' + ip + ':' + port + '/' + req + '?send=' + new_text + '&to=' + current_chat_id
     get(req_string)
     updateHbox('text sent!')
 
@@ -443,7 +446,7 @@ def displayHelp():
 def pingServer():
     global chats
     global end_all
-    req_string = 'http://' + ip + ':' + port + '/' + req + '?x' 
+    req_string = 'http://' + ip + ':' + port + '/' + req + '?check' 
     while not end_all:
         sleep(ping_interval)
         try:
@@ -456,7 +459,7 @@ def pingServer():
             reloadChats()
             if current_chat_id in new_chats:
                 loadMessages(current_chat_id)
-            system('notify-send "you got new texts!"')
+            os.system('notify-send "you got new texts!"') if os.uname()[0] != 'Darwin' else 0
 
 def mainTask():
     global end_all
