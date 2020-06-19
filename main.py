@@ -4,34 +4,34 @@ from textwrap import wrap
 from time import sleep
 from multiprocessing.pool import ThreadPool
 import os
+import sys
 # import locale
 
-# The private IP of your host device
-ip = '192.168.50.10'
-# The port on which your server is running 
-port = '8741'
-# Don't change this unless you actually know what you're doing and what this is used for.
-req = 'requests'
-# How many lines you'll scroll down/up in chats/messages boxes, respectively
-chats_scroll_factor = 2
-messages_scroll_factor = 5
-# Character to indicate what conversation you currently have selected. Should only be one or two characters.
-current_chat_indicator = '>'
-# Strings to define underline of messages
-my_chat_end = '╲▏'
-their_chat_end = '▕╱'
-chat_underline = '▔'
-# Top padding for conversation list in leftmost (conversation) box
-chat_vertical_offset = 1
-# Left padding for each box's title
-title_offset = 5
-# Title for each of the boxes
-chats_title = '| chats |'
-messages_title = '| messages |'
-input_title = '| input here :) |'
-help_title = '| help |'
-# Left padding for help strings
-help_inset = 5
+settings = {
+    'ip': '192.168.50.152',
+    'port': '8741',
+    'req': 'requests',
+    'chats_scroll_factor': 2,
+    'messages_scroll_factor': 5,
+    'current_chat_indicator': '>',
+    'my_chat_end': '╲▏',
+    'their_chat_end': '▕╱',
+    'chat_underline': '▔',
+    'chat_vertical_offset': 1,
+    'title_offset': 5,
+    'chats_title': '| chats |',
+    'messages_title': '| messages |',
+    'input_title': '| input here :) |',
+    'help_title': '| help |',
+    'help_inset': 5,
+    'ping_interval': 60,
+    'poll_exit': 0.5,
+    'default_num_messages': 500,
+    'default_num_chats': 0,
+    'buggy_mode': True,
+    'debug': False
+}
+
 help_message = ['COMMANDS:',
 ':h, :H, help - ',
 'displays this help message',
@@ -48,23 +48,13 @@ help_message = ['COMMANDS:',
 ':q, exit, quit - ',
 'exits the window, cleaning up. recommended over ctrl+c.',
 'If characters are not appearing, or the program is acting weird, just type a bunch of random characters and hit enter.']
-# How frequently (in seconds) you want the script to ping the server to see if there are any messages
-ping_interval = 60
-# How frequently, in seconds, you want the script to check if the sscript has initiated shut down
-poll_exit = 0.5
-# How many messages you want to load when you first select a chat. Set to 0 if you want to load all. Could be very slow.
-default_num_messages = 500
-# How many chats you want to load when you first start the app. Set to 0 if you want to load all. Could be very slow.
-default_num_chats = 0
-# Buggy mode! Allows more versatile active text editing but sometimes makes things look weird and doesn't work perfectly; I'd recommend not using it but it's up to you. 
-buggy_mode = False
 
 print('Loading ...')
 
-if ip == '' or port == '':
-    if ip == '':
+if settings['ip'] == '' or settings['port'] == '':
+    if settings['ip'] == '':
         print('Please put in your device\'s private ip to communicate with')
-    if port == '':
+    if settings['port'] == '':
         print('Please put in the port that your device will be hosting the web server on. If you changed nothing, it should be port 8741.')
     exit()
 
@@ -109,9 +99,11 @@ selected_box = 'c' # Gonna be 'm' or 'c', between cbox and mbox.
 end_all = False
 displaying_help = False
 
-def getChats(num = default_num_chats):
-    # req_string = 'http://' + ip + ':' + port + '/' + req + '?chat=0&num=' + num
-    req_string = 'http://192.168.50.10:8741/requests?chat=0&num=50'
+def getChats(num = settings['default_num_chats']):
+    try:
+        req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?chat=0&num_chats=' + str(num)
+    except:
+        print('Fault was in req_string')
     # locale.setlocale(locale.LC_ALL, '')
 
     new_chats = get(req_string)
@@ -131,7 +123,7 @@ def loadInChats():
         d_name = c.display_name if c.display_name != '' else c.chat_id
         if len(d_name) > chats_width - 2 - chat_offset:
             d_name = d_name[:chats_width - 2 - chat_offset - 3] + '...'
-        vert_pad = (chat_padding * n) + chat_vertical_offset
+        vert_pad = (chat_padding * n) + settings['chat_vertical_offset']
         if vert_pad >= chats_height - 1:
             break
         try:
@@ -144,11 +136,18 @@ def loadInChats():
 
 def reloadChats():
     global chats
+    global end_all
     updateHbox('reloading chats. hold on...')
     try:
         chats = getChats()
     except:
+        updateHbox('entered except')if settings['debug'] else 0
+        updateHbox('failed to connect to server. please check your host.')
+        curses.echo()
+        curses.nocbreak()
+        curses.endwin()
         print('failed to connect to server. please check your host.')
+        end_all = True
         exit()
     loadInChats()
     screen.refresh()
@@ -170,49 +169,57 @@ def selectChat(cmd):
         updateHbox('that index is out of range. please load more chats or try again')
         return
 
-    cbox.addstr((current_chat_index * 2) + chat_vertical_offset, chat_offset - 2, ' ')
-    cbox.addstr((num * 2) + chat_vertical_offset, chat_offset - 2, current_chat_indicator, curses.color_pair(5))
+    cbox.addstr((current_chat_index * 2) + settings['chat_vertical_offset'], chat_offset - 2, ' ')
+    cbox.addstr((num * 2) + settings['chat_vertical_offset'], chat_offset - 2, settings['current_chat_indicator'], curses.color_pair(5))
     refreshCBox(cbox_offset)
     current_chat_id = chats[num].chat_id
     current_chat_index = num
-    loadMessages(current_chat_id, single_width)
+    loadMessages(current_chat_id, settings['default_num_messages'], single_width)
 
-def getMessages(id, num = default_num_messages, offset = 0):
+def getMessages(id, num = settings['default_num_messages'], offset = 0):
     global single_width
-    req_string = 'http://' + ip + ':' + port + '/' + req + '?person=' + id + '&num=' + str(num)
+    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?person=' + id + '&num=' + str(num)
+    updateHbox('req: ' + req_string) if settings['debug'] else 0
     new_messages = get(req_string)
     new_json = new_messages.json()
     message_items = new_json['texts']
     return_val = []
-    for i in message_items:
-        new_m = Message(wrap(i['text'], single_width), i['date'], True if i['is_from_me'] == '1' else False)
+    for n, i in enumerate(message_items):
+        try:
+            new_m = Message(wrap(i['text'], single_width), i['date'], True if i['is_from_me'] == '1' else False)
+        except:
+            pass
         return_val.append(new_m)
+        updateHbox('unpacking item ' + str(n + 1) + '/' + str(len(message_items))) if settings['debug'] else 0
     return return_val
 
-def loadMessages(id, num = default_num_messages, offset = 0):
+def loadMessages(id, num = settings['default_num_messages'], offset = 0):
     global total_messages_height
     updateHbox('loading messages. please wait...')
     messages = getMessages(id, num, offset)
     total_messages_height = sum(len(i.content) + 2 for i in messages) # Need to add 2 to account for gap  + underline
     top_offset = 1
+    updateHbox('set top offset') if settings['debug'] else 0
     mbox.clear()
     mbox_wrapper.clear()
     mbox_wrapper.attron(curses.color_pair(1)) if selected_box == 'm' else mbox_wrapper.attron(curses.color_pair(4))
     mbox_wrapper.box()
-    mbox_wrapper.addstr(0, title_offset, messages_title)
+    mbox_wrapper.addstr(0, settings['title_offset'], settings['messages_title'])
     mbox_wrapper.attron(curses.color_pair(4))
     mbox_wrapper.refresh()
+    updateHbox('set mbox_wrapper attributes') if settings['debug'] else 0
     mbox.resize(total_messages_height, messages_width - 2)
 
-    # for n, m in enumerate(messages):
-    for m in messages:
+    for n, m in enumerate(messages):
+        updateHbox('entered message enumeration on item ' + str(n + 1)) if settings['debug'] else 0
         text_width = max(len(i) for i in m.content)
         left_padding = 0
-        underline = their_chat_end + chat_underline*(text_width - len(their_chat_end))
+        underline = settings['their_chat_end'] + settings['chat_underline']*(text_width - len(settings['their_chat_end']))
+        updateHbox('set first section of message ' + str(n + 1)) if settings['debug'] else 0
 
         if m.from_me == True:
             left_padding = messages_width - 3 - text_width # I feel like it shouldn't be 3 but ok
-            underline = chat_underline*(text_width - len(my_chat_end)) + my_chat_end
+            underline = settings['chat_underline']*(text_width - len(settings['my_chat_end'])) + settings['my_chat_end']
 
         for l in m.content:
             mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, l)
@@ -220,6 +227,8 @@ def loadMessages(id, num = default_num_messages, offset = 0):
         
         mbox.addstr(top_offset, left_padding, underline, curses.color_pair(2) if m.from_me else curses.color_pair(3))
         top_offset += 2
+
+        updateHbox('added text ' + str(n) + '/' + str(num)) if settings['debug'] else 0
 
     total_messages_height = top_offset + 1
     refreshMBox()
@@ -249,12 +258,12 @@ def getTboxText():
             scrollDown()
         elif (chr(ch) in ('k', 'K', '^[A') and len(whole_string) == 0) or ch in (curses.KEY_UP,):
             scrollUp()
-        elif (chr(ch) in ('l', 'L', 'h', 'H') and len(whole_string) == 0) or (not buggy_mode and ch in (curses.KEY_LEFT, curses.KEY_RIGHT)):
+        elif (chr(ch) in ('l', 'L', 'h', 'H') and len(whole_string) == 0) or (not settings['buggy_mode'] and ch in (curses.KEY_LEFT, curses.KEY_RIGHT)):
             switchSelected()
         elif ch in (10, curses.KEY_ENTER):
             return whole_string
         elif ch in (127, curses.KEY_BACKSPACE):
-            if buggy_mode:
+            if settings['buggy_mode']:
                 if right_offset == 0:
                     whole_string = whole_string[:len(whole_string) - 1]
                 else:
@@ -267,12 +276,12 @@ def getTboxText():
                     tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 1:])
                 else:
                     tbox.addstr(1, len(whole_string) + 1, ' ')
-        elif ch in (curses.KEY_LEFT,) and buggy_mode:
+        elif ch in (curses.KEY_LEFT,) and settings['buggy_mode']:
             right_offset += 1 if right_offset != len(whole_string) else 0
-        elif ch in (curses.KEY_RIGHT,) and buggy_mode:
+        elif ch in (curses.KEY_RIGHT,) and settings['buggy_mode']:
             right_offset -= 1 if right_offset > 0 else 0
         elif len(chr(ch)) == 1: 
-            if buggy_mode and right_offset != 0:
+            if settings['buggy_mode'] and right_offset != 0:
                 whole_string = whole_string[:len(whole_string) - right_offset] + chr(ch) + whole_string[len(whole_string) - right_offset:]
             else:
                 whole_string += chr(ch)
@@ -297,11 +306,9 @@ def sendTextCmd(cmd):
     if new_text == '':
         updateHbox('cancelled; text was not sent.')
         return
-    req_string = 'http://' + ip + ':' + port + '/' + req + '?send=' + new_text + '&to=' + current_chat_id
+    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?send=' + new_text + '&to=' + current_chat_id
     get(req_string)
     updateHbox('text sent!')
-
-# There are still definitely some issues with text handling so uh do that thing first
 
 def getTextText():
     tbox.addstr(1, 1, ' '*(t_width - 2))
@@ -315,7 +322,7 @@ def getTextText():
         elif ch in (10, curses.KEY_ENTER):
             return whole_string
         elif ch in (127, curses.KEY_BACKSPACE):
-            if buggy_mode:
+            if settings['buggy_mode']:
                 if right_offset == 0:
                     whole_string = whole_string[:len(whole_string) - 1]
                 else:
@@ -328,12 +335,12 @@ def getTextText():
                     tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 1:])
                 else:
                     tbox.addstr(1, len(whole_string) + 1, ' ')
-        elif ch in (curses.KEY_LEFT,) and buggy_mode:
+        elif ch in (curses.KEY_LEFT,) and settings['buggy_mode']:
             right_offset += 1 if right_offset != len(whole_string) else 0
-        elif ch in (curses.KEY_RIGHT,) and buggy_mode:
+        elif ch in (curses.KEY_RIGHT,) and settings['buggy_mode']:
             right_offset -= 1 if right_offset > 0 else 0
         elif len(chr(ch)) == 1: 
-            if buggy_mode and right_offset != 0:
+            if settings['buggy_mode'] and right_offset != 0:
                 whole_string = whole_string[:len(whole_string) - right_offset] + chr(ch) + whole_string[len(whole_string) - right_offset:]
             else:
                 whole_string += chr(ch)
@@ -356,14 +363,14 @@ def switchSelected():
 
     mbox_wrapper.attron(curses.color_pair(1)) if selected_box == 'm' else 0
     mbox_wrapper.box()
-    mbox_wrapper.addstr(0, title_offset, messages_title)
+    mbox_wrapper.addstr(0, settings['title_offset'], settings['messages_title'])
     mbox_wrapper.attron(curses.color_pair(4)) if selected_box == 'm' else 0
     mbox_wrapper.refresh()
     refreshMBox(mbox_offset)
 
     cbox_wrapper.attron(curses.color_pair(1)) if selected_box == 'c' else 0
     cbox_wrapper.box()
-    cbox_wrapper.addstr(0, title_offset, chats_title)
+    cbox_wrapper.addstr(0, settings['title_offset'], settings['chats_title'])
     cbox_wrapper.attron(curses.color_pair(4)) if selected_box == 'c' else 0
     cbox_wrapper.refresh()
     refreshCBox(cbox_offset)
@@ -373,10 +380,10 @@ def scrollUp():
     global mbox_offset
     global cbox_offset
     if selected_box == 'm':
-        mbox_offset += messages_scroll_factor if mbox_offset < total_messages_height else 0
+        mbox_offset += settings['messages_scroll_factor'] if mbox_offset < total_messages_height else 0
         refreshMBox(mbox_offset)
     else:
-        cbox_offset -= chats_scroll_factor if cbox_offset > 0 else 0
+        cbox_offset -= settings['chats_scroll_factor'] if cbox_offset > 0 else 0
         refreshCBox(cbox_offset)
 
 def scrollDown():
@@ -384,10 +391,10 @@ def scrollDown():
     global mbox_offset
     global cbox_offset
     if selected_box == 'm':
-        mbox_offset -= messages_scroll_factor if mbox_offset > 0 else mbox_offset 
+        mbox_offset -= settings['messages_scroll_factor'] if mbox_offset > 0 else mbox_offset 
         refreshMBox(mbox_offset)
     else:
-        cbox_offset += chats_scroll_factor if cbox_offset < chats_height else 0
+        cbox_offset += settings['chats_scroll_factor'] if cbox_offset < chats_height else 0
         refreshCBox(cbox_offset)
 
 def displayHelp():
@@ -407,17 +414,17 @@ def displayHelp():
     hbox_wrapper = curses.newwin(help_height, help_width, help_y, help_x)
     hbox_wrapper.attron(curses.color_pair(1))
     hbox_wrapper.box()
-    hbox_wrapper.addstr(0, title_offset, help_title)
+    hbox_wrapper.addstr(0, settings['title_offset'], settings['help_title'])
     hbox_wrapper.attron(curses.color_pair(4))
     hbox_wrapper.refresh()
 
     help_box = curses.newpad(text_rows + 0, help_width - 2)
     top_offset = 0
     for n, l in enumerate(help_message):
-        aval_rows = wrap(l, help_width - 2 - help_inset)
+        aval_rows = wrap(l, help_width - 2 - settings['help_inset'])
         for r in aval_rows:
             try:
-                help_box.addstr(top_offset, 0, r if n % 2 == 1 or n == 0 else ' '*help_inset + r)
+                help_box.addstr(top_offset, 0, r if n % 2 == 1 or n == 0 else ' '*settings['help_inset'] + r)
             except:
                 pass
             top_offset += 1
@@ -451,12 +458,52 @@ def displayHelp():
 
     updateHbox('enter a command, or type :h to get help!')
 
+def setVar(cmd):
+    firstSpace = cmd.find(' ')
+    secondSpace = cmd.find(' ', firstSpace + 1)
+    var = cmd[firstSpace + 1:secondSpace]
+    val = cmd[secondSpace + 1:]
+
+    if var not in settings:
+        updateHbox('variable (' + var + ') not found.')
+        return
+
+    if type(settings[var]) == int and not val.isdigit():
+        updateHbox('bad input type for variable.')
+        return
+    elif type(settings[var]) == bool and val not in ('False', 'True'):
+        updateHbox('bad input type for variable.')
+        return
+
+    if type(settings[var]) == int:
+        updateHbox('type is int') if settings['debug'] else 0
+        settings[var] = int(val)
+    elif type(settings[var]) == float:
+        updateHbox('type is float') if settings['debug'] else 0
+        settings[var] = float(val)
+    elif type(settings[var]) == bool:
+        updateHbox('type is bool') if settings['debug'] else 0
+        settings[var] = True if val == 'True' or val == 'true' else False
+    else:
+        updateHbox('type is str') if settings['debug'] else 0
+        settings[var] = val
+    
+    updateHbox('updated ' + var + ' to ' + val)
+
+def showVar(cmd):
+    var = cmd[cmd.find(' ') + 1:]
+
+    if var not in settings:
+        updateHbox('variable not found.')
+    else:
+        updateHbox('current value: ' + str(settings[var]))
+
 def pingServer():
     global chats
     global end_all
-    req_string = 'http://' + ip + ':' + port + '/' + req + '?check' 
+    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?check=0' 
     while not end_all:
-        sleep(ping_interval)
+        sleep(settings['ping_interval'])
         try:
             new_chats = get(req_string).json()
         except:
@@ -483,8 +530,12 @@ def mainTask():
             reloadChats()
         elif cmd in (':h', ':H', 'help'):
             displayHelp()
+        elif cmd[:2] in (':b', ':B') or cmd[:4] == 'bind':
+            setVar(cmd)
         elif cmd in (':q', 'exit', 'quit'):
             break
+        elif cmd[:2] in (':d', ':D') or cmd[:7] == 'display':
+            showVar(cmd)
         else:
             updateHbox('sorry, this command isn\'t supported .')
     
@@ -498,12 +549,12 @@ def main():
     pool.apply_async(mainTask)
 
     while not end_all:
-        sleep(poll_exit)
+        sleep(settings['poll_exit'])
     
     pool.terminate()
 
 try:          
-    chats = getChats()
+    chats = getChats(settings['default_num_chats'])
 except:
     print('Could not get chats. Check to make sure your host server is running.')
     exit()
@@ -556,7 +607,7 @@ cbox_wrapper.attron(curses.color_pair(1))
 cbox_wrapper.box()
 # corner = u'\u256d'
 # cbox_wrapper.border(0, 0, 0, 0, str(corner[0]), 0, 0, 0)
-cbox_wrapper.addstr(0, title_offset, chats_title)
+cbox_wrapper.addstr(0, settings['title_offset'], settings['chats_title'])
 # cbox_wrapper.addstr(0, 0, u'\u256d')
 # cbox_wrapper.addstr(0, chats_width - 1, u'\u256e')
 # cbox_wrapper.addstr(t_y - 1, chats_width - 1, u'\u256f'[0])
@@ -570,14 +621,14 @@ cbox.scrollok(True)
 
 mbox_wrapper = curses.newwin(messages_height, messages_width, messages_y, messages_x)
 mbox_wrapper.box()
-mbox_wrapper.addstr(0, title_offset, messages_title)
+mbox_wrapper.addstr(0, settings['title_offset'], settings['messages_title'])
 mbox_wrapper.refresh()
 mbox = curses.newpad(messages_height - 2, messages_width - 2)
 mbox.scrollok(True)
 
 tbox = curses.newwin(t_height, t_width, t_y, t_x)
 tbox.box()
-tbox.addstr(0, title_offset, input_title)
+tbox.addstr(0, settings['title_offset'], settings['input_title'])
 tbox.keypad(1)
 tbox.refresh()
 
