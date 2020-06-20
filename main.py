@@ -47,7 +47,13 @@ help_message = ['COMMANDS:',
 'switches selected window between messages and conversations',
 ':q, exit, quit - ',
 'exits the window, cleaning up. recommended over ctrl+c.',
-'If characters are not appearing, or the program is acting weird, just type a bunch of random characters and hit enter.']
+':b, :B, bind - ',
+'these allow you to change variables in settings at runtime. all available variables are displayed within lines 11 - 32 in main.py. To change one, you would simply need to do ":b <var> <val>". E.G. ":b ip 192.168.0.127". there is no need to encapsulate strings in quotes, and booleans can be typed as either true/false or True/False. If you change something that is displayed on the screen, such as window titles, the windows will not be automatically reloaded.'
+':d, :D, display - ',
+'this allows you view the value of any variable in settings at runtime. just type ":d <var>", and it will display its current value. E.G. ":d ping_interval"',
+':r, :R, reload - ',
+'this reloads the chats, getting current chats from the currently set ip address and port.',
+'if characters are not appearing, or the program is acting weird, just type a bunch of random characters and hit enter.']
 
 print('Loading ...')
 
@@ -73,13 +79,15 @@ class Chat:
     """A conversation"""
     chat_id = ''
     display_name = ''
+    has_unread = False
     recipients = {} # Would normally just be the chatid of the one recipient. 
 
-    def __init__(self, ci = '', rc = {}, dn = ''):
+    def __init__(self, ci = '', rc = {}, dn = '', un = False):
         self.chat_id = ci
         self.display_name = dn
         self.recipients[ci] = dn
         self.recipients.update(rc)
+        self.has_unread = un
 
 chats = []
 messages = []
@@ -112,7 +120,7 @@ def getChats(num = settings['default_num_chats']):
     return_val = []
     for i in chat_items:
         # I need to start returning recipients to this request so I can initialize chats with them
-        new_chat = Chat(i['chat_identifier'], {}, i['display_name'])
+        new_chat = Chat(i['chat_identifier'], {}, i['display_name'], False if i['has_unread'] == "false" else True)
         return_val.append(new_chat)
     return return_val
 
@@ -128,6 +136,7 @@ def loadInChats():
             break
         try:
             cbox.addstr(vert_pad, 1, str(n))
+            cbox.addstr(vert_pad, chat_offset - 2, '•') if c.has_unread else 0
             cbox.addstr(vert_pad, chat_offset, d_name)
         except curses.error:
             pass
@@ -212,7 +221,8 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
 
     for n, m in enumerate(messages):
         updateHbox('entered message enumeration on item ' + str(n + 1)) if settings['debug'] else 0
-        text_width = max(len(i) for i in m.content)
+        text_width = max(len(i) for i in m.content) if len(m.content) > 0 else 0
+        updateHbox('passed text_width for item ' + str(n + 1)) if settings['debug'] else 0
         left_padding = 0
         underline = settings['their_chat_end'] + settings['chat_underline']*(text_width - len(settings['their_chat_end']))
         updateHbox('set first section of message ' + str(n + 1)) if settings['debug'] else 0
@@ -225,7 +235,7 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
             mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, l)
             top_offset += 1
         
-        mbox.addstr(top_offset, left_padding, underline, curses.color_pair(2) if m.from_me else curses.color_pair(3))
+        mbox.addstr(top_offset, left_padding, underline, curses.color_pair(2) if m.from_me else curses.color_pair(3)) if text_width > 0 else 0
         top_offset += 2
 
         updateHbox('added text ' + str(n) + '/' + str(num)) if settings['debug'] else 0
@@ -502,7 +512,7 @@ def pingServer():
     global chats
     global end_all
     req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?check=0' 
-    while not end_all:
+    while (not end_all) and (settings['poll_interval'] != -1) :
         sleep(settings['ping_interval'])
         try:
             new_chats = get(req_string).json()
@@ -532,10 +542,10 @@ def mainTask():
             displayHelp()
         elif cmd[:2] in (':b', ':B') or cmd[:4] == 'bind':
             setVar(cmd)
-        elif cmd in (':q', 'exit', 'quit'):
-            break
         elif cmd[:2] in (':d', ':D') or cmd[:7] == 'display':
             showVar(cmd)
+        elif cmd in (':q', 'exit', 'quit'):
+            break
         else:
             updateHbox('sorry, this command isn\'t supported .')
     
