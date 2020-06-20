@@ -7,6 +7,11 @@ import os
 import sys
 # import locale
 
+# TODO:
+# [ ] Extensively test text input
+# [ ] Fix help display so it shows all help messages
+# [ ] Set conversation to read on device when you view it on here
+
 settings = {
     'ip': '192.168.50.152',
     'port': '8741',
