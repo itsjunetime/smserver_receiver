@@ -16,6 +16,7 @@ settings = {
     'ip': '192.168.50.152',
     'port': '8741',
     'req': 'requests',
+    'pass': 'toor',
     'chats_scroll_factor': 2,
     'messages_scroll_factor': 5,
     'current_chat_indicator': '>',
@@ -34,7 +35,8 @@ settings = {
     'default_num_messages': 500,
     'default_num_chats': 0,
     'buggy_mode': True,
-    'debug': False
+    'debug': False,
+    'has_authenticated': False
 }
 
 help_message = ['COMMANDS:',
@@ -113,6 +115,14 @@ end_all = False
 displaying_help = False
 
 def getChats(num = settings['default_num_chats']):
+    # To authenticate
+    if not settings['has_authenticated']:
+        auth_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?password=' + settings['pass']
+        response = get(auth_string)
+        if response.text != 'true':
+            print('Your password is wrong. Please change it and try again.')
+            exit()
+
     try:
         req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?chat=0&num_chats=' + str(num)
     except:
