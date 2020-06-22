@@ -13,7 +13,7 @@ import sys
 # [ ] Set conversation to read on device when you view it on here
 
 settings = {
-    'ip': '192.168.50.152',
+    'ip': '192.168.50.10',
     'port': '8741',
     'req': 'requests',
     'pass': 'toor',
@@ -33,7 +33,7 @@ settings = {
     'ping_interval': 60,
     'poll_exit': 0.5,
     'default_num_messages': 500,
-    'default_num_chats': 0,
+    'default_num_chats': 40,
     'buggy_mode': True,
     'debug': False,
     'has_authenticated': False
@@ -118,10 +118,15 @@ def getChats(num = settings['default_num_chats']):
     # To authenticate
     if not settings['has_authenticated']:
         auth_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?password=' + settings['pass']
-        response = get(auth_string)
+        try:
+            response = get(auth_string)
+        except:
+            print('Fault was in original authentication, string: %s' % auth_string)
         if response.text != 'true':
             print('Your password is wrong. Please change it and try again.')
             exit()
+
+    settings['has_authenticated'] = True
 
     try:
         req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?chat=0&num_chats=' + str(num)
@@ -129,14 +134,20 @@ def getChats(num = settings['default_num_chats']):
         print('Fault was in req_string')
     # locale.setlocale(locale.LC_ALL, '')
 
-    new_chats = get(req_string)
+    try:
+        new_chats = get(req_string)
+    except:
+        print('Failed to actually download the chats after authenticating.')
     new_json = new_chats.json()
     chat_items = new_json['chats']
+    if settings['debug']: print('chats_len: %d' % len(chat_items))
     return_val = []
     for i in chat_items:
         # I need to start returning recipients to this request so I can initialize chats with them
         new_chat = Chat(i['chat_identifier'], {}, i['display_name'], False if i['has_unread'] == "false" else True)
         return_val.append(new_chat)
+        print("new chat:") if settings['debug'] else 0
+        print(new_chat) if settings['debug'] else 0
     return return_val
 
 def loadInChats():
@@ -202,6 +213,8 @@ def selectChat(cmd):
 
 def getMessages(id, num = settings['default_num_messages'], offset = 0):
     global single_width
+    id = id.replace('+', '%2B')
+
     req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?person=' + id + '&num=' + str(num)
     updateHbox('req: ' + req_string) if settings['debug'] else 0
     new_messages = get(req_string)
@@ -614,6 +627,8 @@ t_y = rows - t_height - h_height
 min_chat_width = 24
 chats_width = int(cols * 0.3) if cols * 0.3 > min_chat_width else min_chat_width
 chats_height = len(chats) * (chat_padding + 1)
+print('chats_height: %d' % chats_height) if settings['debug'] else 0
+sleep(1) if settings['debug'] else 0
 chats_x = t_x
 chats_y = 0
 cbox_wrapper_height = t_y
