@@ -13,7 +13,7 @@ import sys
 # [ ] Set conversation to read on device when you view it on here
 
 settings = {
-    'ip': '192.168.50.10',
+    'ip': '192.168.50.152',
     'port': '8741',
     'req': 'requests',
     'pass': 'toor',
