@@ -11,9 +11,10 @@ import sys
 # [ ] Extensively test text input
 # [ ] Fix help display so it shows all help messages
 # [ ] Set conversation to read on device when you view it on here
+# [ ] TIME!! Do (ts / 1000000000) + 978307200 . I dont know why, but that's it!
 
 settings = {
-    'ip': '192.168.50.152',
+    'ip': '192.168.50.10',
     'port': '8741',
     'req': 'requests',
     'pass': 'toor',
