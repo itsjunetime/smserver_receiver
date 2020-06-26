@@ -5,13 +5,14 @@ from time import sleep
 from multiprocessing.pool import ThreadPool
 import os
 import sys
+from datetime import datetime
 # import locale
 
 # TODO:
 # [ ] Extensively test text input
 # [ ] Fix help display so it shows all help messages
 # [ ] Set conversation to read on device when you view it on here
-# [ ] TIME!! Do (ts / 1000000000) + 978307200 . I dont know why, but that's it!
+# [x] TIME!! Do (ts / 1000000000) + 978307200 . I dont know why, but that's it!
 
 settings = {
     'ip': '192.168.50.10',
@@ -61,7 +62,7 @@ help_message = ['COMMANDS:',
 'this allows you view the value of any variable in settings at runtime. just type ":d <var>", and it will display its current value. E.G. ":d ping_interval"',
 ':r, :R, reload - ',
 'this reloads the chats, getting current chats from the currently set ip address and port.',
-'if characters are not appearing, or the program is acting weird, just type a bunch of random characters and hit enter.']
+'if characters are not appearing, or the program is acting weird, just type a bunch of random characters and hit enter. No harm will be done for a bad command. For more information, visit: https://github.com/iandwelker/smserver_receiver']
 
 print('Loading ...')
 
@@ -81,7 +82,7 @@ class Message:
     def __init__(self, c = [], ts = 0, fm = True):
         self.from_me = fm
         self.content = c
-        self.timestamp = ts
+        self.timestamp = int(int(ts) / 1000000000 + 978307200) # This will auto-convert it to unix timestamp
 
 class Chat:
     """A conversation"""
@@ -114,6 +115,9 @@ selected_box = 'c' # Gonna be 'm' or 'c', between cbox and mbox.
 
 end_all = False
 displaying_help = False
+
+def getDate(ts):
+    return datetime.fromtimestamp(int(ts)).strftime('%Y-%m-%d %H:%M')
 
 def getChats(num = settings['default_num_chats']):
     # To authenticate
@@ -177,7 +181,7 @@ def reloadChats():
     try:
         chats = getChats()
     except:
-        updateHbox('entered except')if settings['debug'] else 0
+        updateHbox('entered except') if settings['debug'] else 0
         updateHbox('failed to connect to server. please check your host.')
         curses.echo()
         curses.nocbreak()
@@ -219,25 +223,30 @@ def getMessages(id, num = settings['default_num_messages'], offset = 0):
     req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?person=' + id + '&num=' + str(num)
     updateHbox('req: ' + req_string) if settings['debug'] else 0
     new_messages = get(req_string)
+    updateHbox('got new_messages') if settings['debug'] else 0
     new_json = new_messages.json()
+    updateHbox('parsed json of new messages') if settings['debug'] else 0
     message_items = new_json['texts']
     return_val = []
     for n, i in enumerate(message_items):
         try:
             new_m = Message(wrap(i['text'], single_width), i['date'], True if i['is_from_me'] == '1' else False)
+            return_val.append(new_m)
         except:
+            updateHbox('failed to get message from index %d' % n)
             pass
-        return_val.append(new_m)
         updateHbox('unpacking item ' + str(n + 1) + '/' + str(len(message_items))) if settings['debug'] else 0
     return return_val
 
 def loadMessages(id, num = settings['default_num_messages'], offset = 0):
     global total_messages_height
     updateHbox('loading messages. please wait...')
+
     messages = getMessages(id, num, offset)
-    total_messages_height = sum(len(i.content) + 2 for i in messages) # Need to add 2 to account for gap  + underline
+    total_messages_height = sum(len(i.content) + 2 for i in messages) + sum((2 if messages[n].timestamp - messages[n - 1].timestamp > 3600 or n == 0 else 0) for n, m in enumerate(messages)) # Need to add 2 to account for gap  + underline
     top_offset = 1
     updateHbox('set top offset') if settings['debug'] else 0
+
     mbox.clear()
     mbox_wrapper.clear()
     mbox_wrapper.attron(curses.color_pair(1)) if selected_box == 'm' else mbox_wrapper.attron(curses.color_pair(4))
@@ -245,6 +254,7 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
     mbox_wrapper.addstr(0, settings['title_offset'], settings['messages_title'])
     mbox_wrapper.attron(curses.color_pair(4))
     mbox_wrapper.refresh()
+
     updateHbox('set mbox_wrapper attributes') if settings['debug'] else 0
     mbox.resize(total_messages_height, messages_width - 2)
 
@@ -256,14 +266,24 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
         underline = settings['their_chat_end'] + settings['chat_underline']*(text_width - len(settings['their_chat_end']))
         updateHbox('set first section of message ' + str(n + 1)) if settings['debug'] else 0
 
+        if n != 0 and m.timestamp - messages[n - 1].timestamp >= 3600:
+            updateHbox('checking timestamps on item ' + str(n + 1)) if settings['debug'] else 0
+            time_string = getDate(m.timestamp)
+            updateHbox('got string. m=' + str(m.timestamp) + ' & n+1=' + str(messages[n-1].timestamp)) if settings['debug'] else 0
+            mbox.addstr(top_offset, int((messages_width - len(time_string)) / 2), time_string)
+            top_offset += 2
+
         if m.from_me == True:
+            updateHbox('entered if_from_me for item ' + str(n + 1)) if settings['debug'] else 0
             left_padding = messages_width - 3 - text_width # I feel like it shouldn't be 3 but ok
             underline = settings['chat_underline']*(text_width - len(settings['my_chat_end'])) + settings['my_chat_end']
 
-        for l in m.content:
+        for j, l in enumerate(m.content):
+            updateHbox('going through lines of content, on line %d' % j) if settings['debug'] else 0
             mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, l)
             top_offset += 1
         
+        updateHbox('settings underline on item %d' % n) if settings['debug'] else 0
         mbox.addstr(top_offset, left_padding, underline, curses.color_pair(2) if m.from_me else curses.color_pair(3)) if text_width > 0 else 0
         top_offset += 2
 
@@ -457,7 +477,7 @@ def displayHelp():
     hbox_wrapper.attron(curses.color_pair(4))
     hbox_wrapper.refresh()
 
-    help_box = curses.newpad(text_rows + 0, help_width - 2)
+    help_box = curses.newpad(text_rows + 1, help_width - 2)
     top_offset = 0
     for n, l in enumerate(help_message):
         aval_rows = wrap(l, help_width - 2 - settings['help_inset'])
@@ -475,7 +495,7 @@ def displayHelp():
     while True:
         c = screen.getch()
         if chr(c) in ('j', 'J'):
-            help_offset += 1 if help_offset < text_rows - help_height + 2 else 0
+            help_offset += 1 if help_offset < text_rows - help_height + 3 else 0 # Feel like it shouldn't be 3 but oh well
             help_box.refresh(help_offset, 0, help_y + 1, help_x + 1, help_y + help_height - 2, help_x + help_width - 1)
         elif chr(c) in ('k', 'K'):
             help_offset -= 1 if help_offset > 0 else 0
