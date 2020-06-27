@@ -42,6 +42,7 @@ If you have issues with that, check to make sure that you've installed all of th
 
 ### Acknowledged Issues
 - Not all messages are shown; only about 20% of the loaded messages can be displayed.
+- Occasionally, the messages box will spontaneously scroll about halfway up.
 
 ## Settings variables:
 - ip: This contains the private IP of your host device, as a string. Should start with '192.168' or '10.10'. 
