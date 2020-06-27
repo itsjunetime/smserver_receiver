@@ -11,7 +11,7 @@ from datetime import datetime
 # TODO:
 # [ ] Extensively test text input
 # [ ] Set conversation to read on device when you view it on here
-# [ ] make ability to load more texts/conversations
+# [ ] When scrolling up, position in mbox doesn't remain the same after refresh.
 
 settings = {
     'ip': '192.168.50.10',
@@ -36,7 +36,7 @@ settings = {
     'default_num_messages': 100,
     'default_num_chats': 40,
     'buggy_mode': True,
-    'debug': True,
+    'debug': False,
     'has_authenticated': False
 }
 
@@ -88,7 +88,7 @@ class Chat:
     chat_id = ''
     display_name = ''
     has_unread = False
-    recipients = {} # Would normally just be the chatid of the one recipient. 
+    recipients = {} # Would normally just be the chatid of the one recipient.
 
     def __init__(self, ci = '', rc = {}, dn = '', un = False):
         self.chat_id = ci
@@ -260,7 +260,7 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
     for n, m in enumerate(messages):
         total_messages_height += len(m.content)
         total_messages_height += 2
-        total_messages_height += 2 if (n != len(messages) - 1 and messages[n + 1].timestamp - m.timestamp > 3600) or n == 0 else 0
+        total_messages_height += 2 if n == 0 or m.timestamp - messages[n - 1].timestamp >= 3600 else 0
 
     top_offset = 1
     updateHbox('set top offset') if settings['debug'] else 0
@@ -297,7 +297,7 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
             underline = settings['chat_underline']*(text_width - len(settings['my_chat_end'])) + settings['my_chat_end']
 
         for j, l in enumerate(m.content):
-            updateHbox('going through lines of content, on line ' + str(j) + ' of item ' + str(n) + ', offset is ' + str(top_offset) + 'while totalheight is ' + str(total_messages_height)) if settings['debug'] else 0
+            updateHbox('going through lines of content, on line ' + str(j) + ' of item ' + str(n) + ', offset is ' + str(top_offset) + ' while totalheight is ' + str(total_messages_height)) if settings['debug'] else 0
             mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, l)
             top_offset += 1
         
@@ -620,7 +620,7 @@ def mainTask():
             setVar(cmd)
         elif cmd[:2] in (':d', ':D') or cmd[:7] == 'display':
             showVar(cmd)
-        elif cmd in (':q', 'exit', 'quit'):
+        elif cmd in (':q', ':Q', 'exit', 'quit'):
             break
         else:
             updateHbox('sorry, this command isn\'t supported .')

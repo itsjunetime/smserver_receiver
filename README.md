@@ -24,6 +24,7 @@ If you have issues with that, check to make sure that you've installed all of th
  - Sending texts
  - Viewing available conversations
  - View messages from any conversation
+ - Nearly instintaneous dynamic loading of messages
  - Notifications when a new text is received
  - Extensive customization to run well on any system
 
@@ -41,8 +42,7 @@ If you have issues with that, check to make sure that you've installed all of th
 - If you don't want to mess with anything, submit an issue report on github with the last message that was printed, and what your settings array looks like. 
 
 ### Acknowledged Issues
-- Not all messages are shown; only about 20% of the loaded messages can be displayed.
-- Occasionally, the messages box will spontaneously scroll about halfway up.
+- When scrolling up and loading more messages, the screen doesn't always remain at the same spot after refresh.
 
 ## Settings variables:
 - ip: This contains the private IP of your host device, as a string. Should start with '192.168' or '10.10'. 
