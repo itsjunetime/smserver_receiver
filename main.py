@@ -10,7 +10,7 @@ from datetime import datetime
 
 # TODO:
 # [ ] Extensively test text input
-# [ ] Fix help display so it shows all help messages
+# [x] Fix help display so it shows all help messages
 # [ ] Set conversation to read on device when you view it on here
 # [x] TIME!! Do (ts / 1000000000) + 978307200 . I dont know why, but that's it!
 
@@ -123,22 +123,11 @@ def getChats(num = settings['default_num_chats']):
     # To authenticate
     if not settings['has_authenticated']:
         authenticate()
-        # auth_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?password=' + settings['pass']
-        # try:
-        #     response = get(auth_string)
-        # except:
-        #     print('Fault was in original authentication, string: %s' % auth_string)
-        # if response.text != 'true':
-        #     print('Your password is wrong. Please change it and try again.')
-        #     exit()
-
-    # settings['has_authenticated'] = True
 
     try:
         req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?chat=0&num_chats=' + str(num)
     except:
         print('Fault was in req_string')
-    # locale.setlocale(locale.LC_ALL, '')
 
     try:
         new_chats = get(req_string)
