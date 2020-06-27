@@ -33,7 +33,7 @@ settings = {
     'ping_interval': 60,
     'poll_exit': 0.5,
     'default_num_messages': 500,
-    'default_num_chats': 40,
+    'default_num_chats': 0,
     'buggy_mode': True,
     'debug': False,
     'has_authenticated': False
@@ -121,7 +121,7 @@ def getChats(num = settings['default_num_chats']):
         try:
             response = get(auth_string)
         except:
-            print('Fault was in original authentication, string: %s' % auth_string)
+            print('Fault was in original authentication, string: %s' % auth_string) if settings['debug'] else 0
         if response.text != 'true':
             print('Your password is wrong. Please change it and try again.')
             exit()
