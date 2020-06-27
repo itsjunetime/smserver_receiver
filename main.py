@@ -13,10 +13,10 @@ import sys
 # [ ] Set conversation to read on device when you view it on here
 
 settings = {
-    'ip': '192.168.50.152',
+    'ip': '192.168.50.10',
     'port': '8741',
-    'req': 'requests',
     'pass': 'toor',
+    'req': 'requests',
     'chats_scroll_factor': 2,
     'messages_scroll_factor': 5,
     'current_chat_indicator': '>',
@@ -509,7 +509,7 @@ def setVar(cmd):
     if type(settings[var]) == int and not val.isdigit():
         updateHbox('bad input type for variable.')
         return
-    elif type(settings[var]) == bool and val not in ('False', 'True'):
+    elif type(settings[var]) == bool and val not in ('False', 'True', 'false', 'true'):
         updateHbox('bad input type for variable.')
         return
 
