@@ -10,9 +10,8 @@ from datetime import datetime
 
 # TODO:
 # [ ] Extensively test text input
-# [x] Fix help display so it shows all help messages
 # [ ] Set conversation to read on device when you view it on here
-# [x] TIME!! Do (ts / 1000000000) + 978307200 . I dont know why, but that's it!
+# [ ] make ability to load more texts/conversations
 
 settings = {
     'ip': '192.168.50.10',
@@ -34,10 +33,10 @@ settings = {
     'help_inset': 5,
     'ping_interval': 60,
     'poll_exit': 0.5,
-    'default_num_messages': 500,
+    'default_num_messages': 100,
     'default_num_chats': 40,
     'buggy_mode': True,
-    'debug': False,
+    'debug': True,
     'has_authenticated': False
 }
 
@@ -222,13 +221,13 @@ def selectChat(cmd):
     refreshCBox(cbox_offset)
     current_chat_id = chats[num].chat_id
     current_chat_index = num
-    loadMessages(current_chat_id, settings['default_num_messages'], single_width)
+    loadMessages(current_chat_id, settings['default_num_messages'], 0) # was single_width for offset, idk why
 
 def getMessages(id, num = settings['default_num_messages'], offset = 0):
     global single_width
     id = id.replace('+', '%2B')
 
-    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?person=' + id + '&num=' + str(num)
+    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?person=' + id + '&num=' + str(num) + '&offset=' + str(offset)
     updateHbox('req: ' + req_string) if settings['debug'] else 0
     new_messages = get(req_string)
     updateHbox('got new_messages') if settings['debug'] else 0
@@ -248,10 +247,21 @@ def getMessages(id, num = settings['default_num_messages'], offset = 0):
 
 def loadMessages(id, num = settings['default_num_messages'], offset = 0):
     global total_messages_height
-    updateHbox('loading messages. please wait...')
+    global messages
+    global mbox_offset
+    updateHbox('loading ' + ('more ' if offset != 0 else '') + 'messages. please wait...')
 
-    messages = getMessages(id, num, offset)
-    total_messages_height = sum(len(i.content) + 2 for i in messages) + sum((2 if messages[n].timestamp - messages[n - 1].timestamp > 3600 or n == 0 else 0) for n, m in enumerate(messages)) # Need to add 2 to account for gap  + underline
+    if offset == 0:
+        messages = getMessages(id, num, offset)
+    else:
+        messages = getMessages(id, num, len(messages)) + messages
+
+    total_messages_height = 0 # I think? It used to be 0 but setting it to offset may make it be cool
+    for n, m in enumerate(messages):
+        total_messages_height += len(m.content)
+        total_messages_height += 2
+        total_messages_height += 2 if (n != len(messages) - 1 and messages[n + 1].timestamp - m.timestamp > 3600) or n == 0 else 0
+
     top_offset = 1
     updateHbox('set top offset') if settings['debug'] else 0
 
@@ -274,7 +284,7 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
         underline = settings['their_chat_end'] + settings['chat_underline']*(text_width - len(settings['their_chat_end']))
         updateHbox('set first section of message ' + str(n + 1)) if settings['debug'] else 0
 
-        if n != 0 and m.timestamp - messages[n - 1].timestamp >= 3600:
+        if n == 0 or m.timestamp - messages[n - 1].timestamp >= 3600:
             updateHbox('checking timestamps on item ' + str(n + 1)) if settings['debug'] else 0
             time_string = getDate(m.timestamp)
             updateHbox('got string. m=' + str(m.timestamp) + ' & n+1=' + str(messages[n-1].timestamp)) if settings['debug'] else 0
@@ -287,7 +297,7 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
             underline = settings['chat_underline']*(text_width - len(settings['my_chat_end'])) + settings['my_chat_end']
 
         for j, l in enumerate(m.content):
-            updateHbox('going through lines of content, on line %d' % j) if settings['debug'] else 0
+            updateHbox('going through lines of content, on line ' + str(j) + ' of item ' + str(n) + ', offset is ' + str(top_offset) + 'while totalheight is ' + str(total_messages_height)) if settings['debug'] else 0
             mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, l)
             top_offset += 1
         
@@ -298,7 +308,8 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
         updateHbox('added text ' + str(n) + '/' + str(num)) if settings['debug'] else 0
 
     total_messages_height = top_offset + 1
-    refreshMBox()
+    mbox_offset = offset
+    refreshMBox(mbox_offset)
     updateHbox('loaded Messages!')
 
 def refreshCBox(down = cbox_offset):
@@ -446,8 +457,15 @@ def scrollUp():
     global selected_box
     global mbox_offset
     global cbox_offset
+    global total_messages_height
+    global messages
+
     if selected_box == 'm':
-        mbox_offset += settings['messages_scroll_factor'] if mbox_offset < total_messages_height else 0
+        updateHbox('scrolling m box, offset is ' + str(mbox_offset) + ', total height is ' + str(total_messages_height)) if settings['debug'] else 0
+        if mbox_offset < total_messages_height - messages_height:
+            mbox_offset += settings['messages_scroll_factor']
+        elif len(messages) >= settings['default_num_messages']:
+            loadMessages(current_chat_id, settings['default_num_messages'], mbox_offset - settings['messages_scroll_factor'])
         refreshMBox(mbox_offset)
     else:
         cbox_offset -= settings['chats_scroll_factor'] if cbox_offset > 0 else 0
@@ -458,7 +476,8 @@ def scrollDown():
     global mbox_offset
     global cbox_offset
     if selected_box == 'm':
-        mbox_offset -= settings['messages_scroll_factor'] if mbox_offset > 0 else mbox_offset 
+        updateHbox('scrolling m down, offset is ' + str(mbox_offset)) if settings['debug'] else 0
+        mbox_offset -= settings['messages_scroll_factor'] if mbox_offset > 0 else 0
         refreshMBox(mbox_offset)
     else:
         cbox_offset += settings['chats_scroll_factor'] if cbox_offset < chats_height else 0
