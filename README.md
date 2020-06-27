@@ -1,6 +1,6 @@
 # Receiver app for SMServer
 
-Unnamed as of yet. Maybe I'll just keep it like this, idk. If you have a good name file an issue 'cause I need one. 
+Unnamed as of yet. Maybe I'll just keep it like this, idk. If you have a good name, let me know, 'cause I need one. 
 
 ### Requires:
  - python3
@@ -20,12 +20,28 @@ To use this, you have to host a server with either my Mac or iPhone hosting app;
 
 If you have issues with that, check to make sure that you've installed all of the above listed dependencies (just install them with pip, e.g. 'pip install curses'). If you're still having issues, continue to 'debugging' down below.
 
+### Current features:
+ - Sending texts
+ - Viewing available conversations
+ - View messages from any conversation
+ - Notifications when a new text is received
+ - Extensive customization to run well on any system
+
+### Planned future features:
+ - Send attachments
+ - Easy colorscheme customization
+ - Date and text decoration closer to stock apple
+ - Displaying images with jp2a
+
 ## Debugging
 
 - To debug, set 'debug' to True on line 38 of main.py. 
 - Run the program again, and check what was the last thing to flash on the screen before the program either crashed or froze.
 - Cross-reference the printed text with the code (find where in the code that command is printed), and try to fix it from there if you know python/curses. 
 - If you don't want to mess with anything, submit an issue report on github with the last message that was printed, and what your settings array looks like. 
+
+### Acknowledged Issues
+- Not all messages are shown; only about 20% of the loaded messages can be displayed.
 
 ## Settings variables:
 - ip: This contains the private IP of your host device, as a string. Should start with '192.168' or '10.10'. 
@@ -46,3 +62,6 @@ If you have issues with that, check to make sure that you've installed all of th
 - poll_exit: How frequently (in seconds) the program will check to see if you're trying to exit.
 - default_num_messages: How many messages you want to load when you first select each conversation
 - default_num_chats: How many conversations you want to load for the left chat box when you first launch the program
+- buggy_mode: Even though it's called buggy_mode, I think setting it to True is actually less buggy than setting it to False. It just pertains to how text input is parsed.
+- debug: Makes everything really slow and flashes countless debug messages basically any time you do anything. Don't set to True unless you're actually debugging.
+- has_authenticated: Sets to true once you authenticate with the server, so you don't authenticate every time you make a request.

@@ -122,16 +122,17 @@ def getDate(ts):
 def getChats(num = settings['default_num_chats']):
     # To authenticate
     if not settings['has_authenticated']:
-        auth_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?password=' + settings['pass']
-        try:
-            response = get(auth_string)
-        except:
-            print('Fault was in original authentication, string: %s' % auth_string)
-        if response.text != 'true':
-            print('Your password is wrong. Please change it and try again.')
-            exit()
+        authenticate()
+        # auth_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?password=' + settings['pass']
+        # try:
+        #     response = get(auth_string)
+        # except:
+        #     print('Fault was in original authentication, string: %s' % auth_string)
+        # if response.text != 'true':
+        #     print('Your password is wrong. Please change it and try again.')
+        #     exit()
 
-    settings['has_authenticated'] = True
+    # settings['has_authenticated'] = True
 
     try:
         req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?chat=0&num_chats=' + str(num)
@@ -145,6 +146,13 @@ def getChats(num = settings['default_num_chats']):
         print('Failed to actually download the chats after authenticating.')
     new_json = new_chats.json()
     chat_items = new_json['chats']
+    if len(chat_items) == 0:
+        authenticate()
+        try:
+            chat_items = get(req_string).json()['chats']
+        except:
+            print('Failed to actually download the chats after authenticating.')
+
     if settings['debug']: print('chats_len: %d' % len(chat_items))
     return_val = []
     for i in chat_items:
@@ -154,6 +162,17 @@ def getChats(num = settings['default_num_chats']):
         print("new chat:") if settings['debug'] else 0
         print(new_chat) if settings['debug'] else 0
     return return_val
+
+def authenticate():
+    auth_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?password=' + settings['pass']
+    try:
+        response = get(auth_string)
+    except:
+        print('Fault was in original authentication, string: %s' % auth_string)
+    if response.text != 'true':
+        print('Your password is wrong. Please change it and try again.')
+        exit()
+    settings['has_authenticated'] = True
 
 def loadInChats():
 
