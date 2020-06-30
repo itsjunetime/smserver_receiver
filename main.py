@@ -34,7 +34,7 @@ settings = {
     'ping_interval': 60,
     'poll_exit': 0.5,
     'default_num_messages': 100,
-    'default_num_chats': 40,
+    'default_num_chats': 30,
     'buggy_mode': True,
     'debug': False,
     'has_authenticated': False
@@ -77,11 +77,17 @@ class Message:
     from_me = True
     content = []
     timestamp = 0
+    attachments = []
+    attachment_types = []
 
-    def __init__(self, c = [], ts = 0, fm = True):
+    def __init__(self, c = [], ts = 0, fm = True, att = '', att_t = ''):
         self.from_me = fm
         self.content = c
         self.timestamp = int(int(ts) / 1000000000 + 978307200) # This will auto-convert it to unix timestamp
+        pa = att.split(':')
+        self.attachments = pa[:len(pa) - 1]
+        pa_t = att_t.split(':')
+        self.attachment_types = pa_t[:len(pa_t) - 1]
 
 class Chat:
     """A conversation"""
@@ -99,8 +105,10 @@ class Chat:
 
 chats = []
 messages = []
+displayed_attachments = []
 current_chat_id = ''
 current_chat_index = 0
+num_requested_chats = 0
 
 chat_padding = 2
 chat_offset = 6
@@ -118,15 +126,18 @@ displaying_help = False
 def getDate(ts):
     return datetime.fromtimestamp(int(ts)).strftime('%Y-%m-%d %H:%M')
 
-def getChats(num = settings['default_num_chats']):
+def getChats(num = settings['default_num_chats'], offset = 0):
     # To authenticate
+    global num_requested_chats
     if not settings['has_authenticated']:
         authenticate()
 
     try:
-        req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?chat=0&num_chats=' + str(num)
+        req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?chat=0&num_chats=' + str(num) + "&chats_offset=" + str(offset)
     except:
         print('Fault was in req_string')
+
+    num_requested_chats = num if offset == 0 else num_requested_chats + num
 
     try:
         new_chats = get(req_string)
@@ -163,8 +174,17 @@ def authenticate():
     settings['has_authenticated'] = True
 
 def loadInChats():
+    global chats
+    global chats_height
+    global num_requested_chats
+
+    if num_requested_chats != 0:
+        chats += getChats(settings['default_num_chats'], num_requested_chats)
 
     cbox.clear()
+    chats_height = (len(chats) + 1) * chat_padding
+    cbox.resize(chats_height, chats_width - 2)
+
     for n, c in enumerate(chats, 0):
         d_name = c.display_name if c.display_name != '' else c.chat_id
         if len(d_name) > chats_width - 2 - chat_offset:
@@ -177,8 +197,9 @@ def loadInChats():
             cbox.addstr(vert_pad, chat_offset - 2, '•') if c.has_unread else 0
             cbox.addstr(vert_pad, chat_offset, d_name)
         except curses.error:
-            pass
+            updateHbox('failed to add chat ' + str(n) + ' to box') if settings['debug'] else 0
 
+    updateHbox('chats loaded in')
     refreshCBox()
 
 def reloadChats():
@@ -237,7 +258,9 @@ def getMessages(id, num = settings['default_num_messages'], offset = 0):
     return_val = []
     for n, i in enumerate(message_items):
         try:
-            new_m = Message(wrap(i['text'], single_width), i['date'], True if i['is_from_me'] == '1' else False)
+            att = i['attachment_file'] if 'attachment_file' in i.keys() else ''
+            att_t = i['attachment_type'] if 'attachment_type' in i.keys() else ''
+            new_m = Message(wrap(i['text'], single_width), i['date'], True if i['is_from_me'] == '1' else False, att, att_t)
             return_val.append(new_m)
         except:
             updateHbox('failed to get message from index %d' % n)
@@ -249,16 +272,20 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
     global total_messages_height
     global messages
     global mbox_offset
+    global displayed_attachments
+    global single_width
     updateHbox('loading ' + ('more ' if offset != 0 else '') + 'messages. please wait...')
 
     if offset == 0:
         messages = getMessages(id, num, offset)
+        displayed_attachments = []
     else:
         messages = getMessages(id, num, len(messages)) + messages
 
     total_messages_height = 0 # I think? It used to be 0 but setting it to offset may make it be cool
     for n, m in enumerate(messages):
         total_messages_height += len(m.content)
+        total_messages_height += len(m.attachments) if len(m.attachments) > 0 else 0
         total_messages_height += 2
         total_messages_height += 2 if n == 0 or m.timestamp - messages[n - 1].timestamp >= 3600 else 0
 
@@ -273,22 +300,29 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
     mbox_wrapper.attron(curses.color_pair(4))
     mbox_wrapper.refresh()
 
-    updateHbox('set mbox_wrapper attributes') if settings['debug'] else 0
+    updateHbox('set mbox_wrapper attributes, tmh is ' + str(total_messages_height)) if settings['debug'] else 0
     mbox.resize(total_messages_height, messages_width - 2)
 
     for n, m in enumerate(messages):
         updateHbox('entered message enumeration on item ' + str(n + 1)) if settings['debug'] else 0
+        longest_att = 0
+        for i in m.attachment_types:
+            if len('Attachment 00: ' + i) > longest_att:
+                longest_att = len('Attachment 00: ' + i)
+
         text_width = max(len(i) for i in m.content) if len(m.content) > 0 else 0
+        text_width = max(text_width, longest_att)
         updateHbox('passed text_width for item ' + str(n + 1)) if settings['debug'] else 0
         left_padding = 0
-        underline = settings['their_chat_end'] + settings['chat_underline']*(text_width - len(settings['their_chat_end']))
+        underline = settings['their_chat_end'] + settings['chat_underline']*(text_width - len(settings['their_chat_end']) + 1)
         updateHbox('set first section of message ' + str(n + 1)) if settings['debug'] else 0
 
         if n == 0 or m.timestamp - messages[n - 1].timestamp >= 3600:
             updateHbox('checking timestamps on item ' + str(n + 1)) if settings['debug'] else 0
             time_string = getDate(m.timestamp)
-            updateHbox('got string. m=' + str(m.timestamp) + ' & n+1=' + str(messages[n-1].timestamp)) if settings['debug'] else 0
-            mbox.addstr(top_offset, int((messages_width - len(time_string)) / 2), time_string)
+            updateHbox('got string on item ' + str(n + 1) + '. m=' + str(m.timestamp) + ' & n+1=' + str(messages[n-1].timestamp)) if settings['debug'] else 0
+            mbox.addstr(top_offset, int((messages_width - 2 - len(time_string)) / 2), time_string)
+            updateHbox('added time string on item ' + str(n)) if settings['debug'] else 0
             top_offset += 2
 
         if m.from_me == True:
@@ -296,11 +330,16 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
             left_padding = messages_width - 3 - text_width # I feel like it shouldn't be 3 but ok
             underline = settings['chat_underline']*(text_width - len(settings['my_chat_end'])) + settings['my_chat_end']
 
-        for j, l in enumerate(m.content):
-            updateHbox('going through lines of content, on line ' + str(j) + ' of item ' + str(n) + ', offset is ' + str(top_offset) + ' while totalheight is ' + str(total_messages_height)) if settings['debug'] else 0
-            mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, l)
+        for i in range(len(m.attachments)):
+            mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, 'Attachment ' + str(len(displayed_attachments)) + ': ' + m.attachment_types[i])
+            displayed_attachments.append(m.attachments[i])
             top_offset += 1
-        
+            # So I feel like I should increment top_offset here but I guess not?
+
+        for j, l in enumerate(m.content):
+            mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, l)
+            top_offset += 1 if l != ' ' else -1
+
         updateHbox('settings underline on item %d' % n) if settings['debug'] else 0
         mbox.addstr(top_offset, left_padding, underline, curses.color_pair(2) if m.from_me else curses.color_pair(3)) if text_width > 0 else 0
         top_offset += 2
@@ -475,12 +514,18 @@ def scrollDown():
     global selected_box
     global mbox_offset
     global cbox_offset
+    global chats
     if selected_box == 'm':
         updateHbox('scrolling m down, offset is ' + str(mbox_offset)) if settings['debug'] else 0
         mbox_offset -= settings['messages_scroll_factor'] if mbox_offset > 0 else 0
         refreshMBox(mbox_offset)
     else:
-        cbox_offset += settings['chats_scroll_factor'] if cbox_offset < chats_height else 0
+        if cbox_offset + settings['chats_scroll_factor'] >= chats_height - cbox_wrapper_height - 2:
+            updateHbox('Updating chats...')
+            loadInChats()
+        else:
+            updateHbox('just scrolling') if settings['debug'] else 0
+            cbox_offset += settings['chats_scroll_factor'] if cbox_offset < chats_height - cbox_wrapper_height - 2 else 0
         refreshCBox(cbox_offset)
 
 def displayHelp():
@@ -584,6 +629,12 @@ def showVar(cmd):
     else:
         updateHbox('current value: ' + str(settings[var]))
 
+def openAttachment(num):
+    global displayed_attachments
+    if len(displayed_attachments) <= int(num): return
+    http_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/attachments?path=' + str(displayed_attachments[int(num)])
+    os.system('open ' + http_string) if 'darwin' in sys.platform else os.system('xdg-open ' + http_string)
+
 def pingServer():
     global chats
     global end_all
@@ -620,6 +671,8 @@ def mainTask():
             setVar(cmd)
         elif cmd[:2] in (':d', ':D') or cmd[:7] == 'display':
             showVar(cmd)
+        elif cmd[:2] in (':a', ':A'):
+            openAttachment(cmd[3:])
         elif cmd in (':q', ':Q', 'exit', 'quit'):
             break
         else:
@@ -642,7 +695,7 @@ def main():
 try:          
     chats = getChats(settings['default_num_chats'])
 except:
-    print('Could not get chats. Check to make sure your host server is running.')
+    print('Could not authenticate. Check to make sure your host server is running.')
     exit()
 
 screen = curses.initscr()
@@ -674,7 +727,8 @@ t_y = rows - t_height - h_height
 
 min_chat_width = 24
 chats_width = int(cols * 0.3) if cols * 0.3 > min_chat_width else min_chat_width
-chats_height = len(chats) * (chat_padding + 1)
+# chats_height = (len(chats) * chat_padding) + settings['chat_vertical_offset']
+chats_height = (len(chats) + settings['chat_vertical_offset']) * chat_padding
 print('chats_height: %d' % chats_height) if settings['debug'] else 0
 sleep(1) if settings['debug'] else 0
 chats_x = t_x
@@ -704,7 +758,8 @@ cbox_wrapper.addstr(0, settings['title_offset'], settings['chats_title'])
 
 cbox_wrapper.attron(curses.color_pair(4))
 cbox_wrapper.refresh()
-cbox = curses.newpad(chats_height - 2, chats_width - 2)
+# cbox = curses.newpad(chats_height - 2, chats_width - 2)
+cbox = curses.newpad(chats_height, chats_width - 2)
 cbox.scrollok(True)
 
 mbox_wrapper = curses.newwin(messages_height, messages_width, messages_y, messages_x)
@@ -724,9 +779,9 @@ hbox = curses.newwin(h_height, h_width, h_y, h_x)
 
 screen.refresh()
 
-updateHbox('type \':h\' to get help!')
-
 loadInChats()
+
+updateHbox('type \':h\' to get help!')
 
 screen.refresh()
 

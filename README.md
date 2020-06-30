@@ -24,7 +24,8 @@ If you have issues with that, check to make sure that you've installed all of th
  - Sending texts
  - Viewing available conversations
  - View messages from any conversation
- - Nearly instintaneous dynamic loading of messages
+ - Easy viewing of image attachments outside of terminal
+ - Nearly instantaneous dynamic loading of messages
  - Notifications when a new text is received
  - Extensive customization to run well on any system
 
@@ -35,7 +36,6 @@ If you have issues with that, check to make sure that you've installed all of th
  - Displaying images with jp2a
 
 ## Debugging
-
 - To debug, set 'debug' to True on line 38 of main.py. 
 - Run the program again, and check what was the last thing to flash on the screen before the program either crashed or froze.
 - Cross-reference the printed text with the code (find where in the code that command is printed), and try to fix it from there if you know python/curses. 
@@ -43,6 +43,7 @@ If you have issues with that, check to make sure that you've installed all of th
 
 ### Acknowledged Issues
 - When scrolling up and loading more messages, the screen doesn't always remain at the same spot after refresh.
+- Messages with an attachment and no text have an extra blank line underneath them
 
 ## Settings variables:
 - ip: This contains the private IP of your host device, as a string. Should start with '192.168' or '10.10'. 
