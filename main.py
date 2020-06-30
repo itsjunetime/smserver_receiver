@@ -160,6 +160,7 @@ def getChats(num = settings['default_num_chats'], offset = 0):
         return_val.append(new_chat)
         print("new chat:") if settings['debug'] else 0
         print(new_chat) if settings['debug'] else 0
+        
     return return_val
 
 def authenticate():
@@ -266,6 +267,8 @@ def getMessages(id, num = settings['default_num_messages'], offset = 0):
             updateHbox('failed to get message from index %d' % n)
             pass
         updateHbox('unpacking item ' + str(n + 1) + '/' + str(len(message_items))) if settings['debug'] else 0
+
+    return_val.reverse()
     return return_val
 
 def loadMessages(id, num = settings['default_num_messages'], offset = 0):
