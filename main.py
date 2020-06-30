@@ -43,10 +43,6 @@ settings = {
 help_message = ['COMMANDS:',
 ':h, :H, help - ',
 'displays this help message',
-':s, :S, send - ',
-'starts the process for sending a text with the currently selected conversation. after you hit enter on \':s\', You will then be able to input the content of your text, and hit <enter> once you are ready to send it, or hit <esc> to cancel. You can also enter enter your text with a space between it and the \':s\', e.g.: \':s hello!\'',
-':c, :C, chat - ',
-'this should be immediately followed by a number, specifically the index of the conversation whose texts you want to view. the indices are displayed to the left of each conversation in the leftmost box. eg \':c 25\'',
 'j, J - ',
 'scrolls down in the selected window',
 'k, K - ',
@@ -55,6 +51,12 @@ help_message = ['COMMANDS:',
 'switches selected window between messages and conversations',
 ':q, exit, quit - ',
 'exits the window, cleaning up. recommended over ctrl+c.',
+':s, :S, send - ',
+'starts the process for sending a text with the currently selected conversation. after you hit enter on \':s\', You will then be able to input the content of your text, and hit <enter> once you are ready to send it, or hit <esc> to cancel. You can also enter enter your text with a space between it and the \':s\', e.g.: \':s hello!\'',
+':c, :C, chat - ',
+'this should be immediately followed by a number, specifically the index of the conversation whose texts you want to view. the indices are displayed to the left of each conversation in the leftmost box. eg \':c 25\'',
+':a, :A - ',
+'this, along with the number of the attachment, will open the selected attachment in your browser. For example, if you see \'Attachment 5: image/jpeg\', type \':a 5\' and the attachment will be opened to be viewed in your browser',
 ':b, :B, bind - ',
 'these allow you to change variables in settings at runtime. all available variables are displayed within lines 11 - 32 in main.py. To change one, you would simply need to do ":b <var> <val>". E.G. ":b ip 192.168.0.127". there is no need to encapsulate strings in quotes, and booleans can be typed as either true/false or True/False. If you change something that is displayed on the screen, such as window titles, the windows will not be automatically reloaded.',
 ':d, :D, display - ',
@@ -543,7 +545,12 @@ def displayHelp():
     help_y = int((rows - help_height) / 2)
     help_offset = 0
 
-    text_rows = sum(len(wrap(l, help_width - 2)) for l in help_message)
+    help_messages_wrapped = [[]]
+    
+    for n, l in enumerate(help_message):
+        help_messages_wrapped.append(wrap(l, help_width - 2) if n % 2 == 0 and not n == 0 else wrap(l, help_width - 2 - settings['help_inset']))
+
+    text_rows = sum(len(m) for m in help_messages_wrapped)
 
     hbox_wrapper = curses.newwin(help_height, help_width, help_y, help_x)
     hbox_wrapper.attron(curses.color_pair(1))
@@ -552,15 +559,12 @@ def displayHelp():
     hbox_wrapper.attron(curses.color_pair(4))
     hbox_wrapper.refresh()
 
-    help_box = curses.newpad(text_rows + 1, help_width - 2)
+    help_box = curses.newpad(text_rows + 2, help_width - 2) # was text_rows + 1
     top_offset = 0
-    for n, l in enumerate(help_message):
-        aval_rows = wrap(l, help_width - 2 - settings['help_inset'])
-        for r in aval_rows:
-            try:
-                help_box.addstr(top_offset, 0, r if n % 2 == 1 or n == 0 else ' '*settings['help_inset'] + r)
-            except:
-                pass
+
+    for n, m in enumerate(help_messages_wrapped):
+        for r in m:
+            help_box.addstr(top_offset, 0, r if n % 2 == 0 and not n == 0 else ' '*settings['help_inset'] + r)
             top_offset += 1
 
     help_box.refresh(help_offset, 0, help_y + 1, help_x + 1, help_y + help_height - 2, help_x + help_width - 2)
@@ -570,13 +574,14 @@ def displayHelp():
     while True:
         c = screen.getch()
         if chr(c) in ('j', 'J'):
-            help_offset += 1 if help_offset < text_rows - help_height + 3 else 0 # Feel like it shouldn't be 3 but oh well
+            help_offset += 1 if help_offset < text_rows - help_height + 2 else 0 # Feel like it shouldn't be 3 but oh well
             help_box.refresh(help_offset, 0, help_y + 1, help_x + 1, help_y + help_height - 2, help_x + help_width - 1)
         elif chr(c) in ('k', 'K'):
             help_offset -= 1 if help_offset > 0 else 0
             help_box.refresh(help_offset, 0, help_y + 1, help_x + 1, help_y + help_height - 2, help_x + help_width - 2)
         elif chr(c) in ('q', 'Q'):
             break
+        updateHbox('scrolling, rows is ' + str(text_rows) + ', height is ' + str(help_height) + ', offset is ' + str(help_offset)) if settings['debug'] else 0
     
     hbox_wrapper.clear()
     hbox_wrapper.refresh()
@@ -635,7 +640,7 @@ def showVar(cmd):
 def openAttachment(num):
     global displayed_attachments
     if len(displayed_attachments) <= int(num): return
-    http_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/attachments?path=' + str(displayed_attachments[int(num)])
+    http_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/attachments?path=' + str(displayed_attachments[int(num)]).replace(' ', '%20')
     os.system('open ' + http_string) if 'darwin' in sys.platform else os.system('xdg-open ' + http_string)
 
 def pingServer():
