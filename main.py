@@ -602,6 +602,7 @@ def setVar(cmd):
     secondSpace = cmd.find(' ', firstSpace + 1)
     var = cmd[firstSpace + 1:secondSpace]
     val = cmd[secondSpace + 1:]
+    oldval = settings[var]
 
     if var not in settings:
         updateHbox('variable (' + var + ') not found.')
@@ -627,6 +628,17 @@ def setVar(cmd):
         updateHbox('type is str') if settings['debug'] else 0
         settings[var] = val
     
+    if type(oldval) == str:
+        val = "'" + val + "'"
+        oldval = "'" + oldval + "'"
+    elif type(oldval) == bool:
+        val = 'True' if val in ('true', 'True') else 'False'
+    
+    if sys.platform == 'linux':
+        sed_string = 'sed -i "s/\'' + var + '\': ' + str(oldval) + ',/\'' + var + '\': ' + str(val) + ',/" ' + os.path.basename(__file__)
+        os.system(sed_string)
+
+
     updateHbox('updated ' + var + ' to ' + val)
 
 def showVar(cmd):
