@@ -638,7 +638,6 @@ def setVar(cmd):
         sed_string = 'sed -i "s/\'' + var + '\': ' + str(oldval) + ',/\'' + var + '\': ' + str(val) + ',/" ' + os.path.basename(__file__)
         os.system(sed_string)
 
-
     updateHbox('updated ' + var + ' to ' + val)
 
 def showVar(cmd):
