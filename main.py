@@ -30,7 +30,7 @@ settings = {
     'messages_title': '| messages |',
     'input_title': '| input here :) |',
     'help_title': '| help |',
-    'colorscheme': 'outrun',
+    'colorscheme': 'default',
     'help_inset': 5,
     'ping_interval': 60,
     'poll_exit': 0.5,
@@ -613,6 +613,10 @@ def setVar(cmd):
     val = cmd[secondSpace + 1:]
     oldval = settings[var]
 
+    if var == 'colorscheme' and val not in color_schemes.keys():
+        updateHbox(val + ' is not an existing colorscheme.')
+        return
+
     if var not in settings:
         updateHbox('variable (' + var + ') not found.')
         return
@@ -758,7 +762,6 @@ t_y = rows - t_height - h_height
 
 min_chat_width = 24
 chats_width = int(cols * 0.3) if cols * 0.3 > min_chat_width else min_chat_width
-# chats_height = (len(chats) * chat_padding) + settings['chat_vertical_offset']
 chats_height = (len(chats) + settings['chat_vertical_offset']) * chat_padding
 print('chats_height: %d' % chats_height) if settings['debug'] else 0
 sleep(1) if settings['debug'] else 0
