@@ -30,6 +30,7 @@ settings = {
     'messages_title': '| messages |',
     'input_title': '| input here :) |',
     'help_title': '| help |',
+    'colorscheme': 'outrun',
     'help_inset': 5,
     'ping_interval': 60,
     'poll_exit': 0.5,
@@ -64,6 +65,14 @@ help_message = ['COMMANDS:',
 ':r, :R, reload - ',
 'this reloads the chats, getting current chats from the currently set ip address and port.',
 'if characters are not appearing, or the program is acting weird, just type a bunch of random characters and hit enter. No harm will be done for a bad command. For more information, visit: https://github.com/iandwelker/smserver_receiver']
+
+color_schemes = {
+    # [0]: Selected box, [1]: My text underline, [2]: their text underline
+    # [3]: Unselected box, [4]: Chat indicator color, [5]: Unread indicator color,
+    # [6]: Text color, [7]: Hints box color
+    "default": [6, 39, 248, -1, 219, 39, 231, 9],
+    "outrun": [211, 165, 238, 6, 228, 205, 189, 198],
+}
 
 print('Loading ...')
 
@@ -196,9 +205,9 @@ def loadInChats():
         if vert_pad >= chats_height - 1:
             break
         try:
-            cbox.addstr(vert_pad, 1, str(n))
-            cbox.addstr(vert_pad, chat_offset - 2, '•') if c.has_unread else 0
-            cbox.addstr(vert_pad, chat_offset, d_name)
+            cbox.addstr(vert_pad, 1, str(n), curses.color_pair(7))
+            cbox.addstr(vert_pad, chat_offset - 2, '•',curses.color_pair(5)) if c.has_unread else 0
+            cbox.addstr(vert_pad, chat_offset, d_name, curses.color_pair(7))
         except curses.error:
             updateHbox('failed to add chat ' + str(n) + ' to box') if settings['debug'] else 0
 
@@ -326,7 +335,7 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
             updateHbox('checking timestamps on item ' + str(n + 1)) if settings['debug'] else 0
             time_string = getDate(m.timestamp)
             updateHbox('got string on item ' + str(n + 1) + '. m=' + str(m.timestamp) + ' & n+1=' + str(messages[n-1].timestamp)) if settings['debug'] else 0
-            mbox.addstr(top_offset, int((messages_width - 2 - len(time_string)) / 2), time_string)
+            mbox.addstr(top_offset, int((messages_width - 2 - len(time_string)) / 2), time_string, curses.color_pair(7))
             updateHbox('added time string on item ' + str(n)) if settings['debug'] else 0
             top_offset += 2
 
@@ -336,13 +345,13 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
             underline = settings['chat_underline']*(text_width - len(settings['my_chat_end'])) + settings['my_chat_end']
 
         for i in range(len(m.attachments)):
-            mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, 'Attachment ' + str(len(displayed_attachments)) + ': ' + m.attachment_types[i])
+            mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, 'Attachment ' + str(len(displayed_attachments)) + ': ' + m.attachment_types[i], curses.color_pair(7))
             displayed_attachments.append(m.attachments[i])
             top_offset += 1
             # So I feel like I should increment top_offset here but I guess not?
 
         for j, l in enumerate(m.content):
-            mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, l)
+            mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, l, curses.color_pair(7))
             top_offset += 1 if l != ' ' else -1
 
         updateHbox('settings underline on item %d' % n) if settings['debug'] else 0
@@ -474,7 +483,7 @@ def getTextText():
 
 def updateHbox(string):
     hbox.clear()
-    hbox.addstr(0, 0, string)
+    hbox.addstr(0, 0, string, curses.color_pair(8))
     hbox.refresh()
 
 def switchSelected():
@@ -728,11 +737,14 @@ curses.use_default_colors()
 rows = curses.LINES
 cols = curses.COLS
 
-curses.init_pair(1, 75, -1)
-curses.init_pair(2, curses.COLOR_BLUE, -1)
-curses.init_pair(3, 248, -1)
-curses.init_pair(4, curses.COLOR_WHITE, -1)
-curses.init_pair(5, 219, -1)
+curses.init_pair(1, color_schemes[settings['colorscheme']][0], -1) # Selected box
+curses.init_pair(2, color_schemes[settings['colorscheme']][1], -1) # My text underline
+curses.init_pair(3, color_schemes[settings['colorscheme']][2], -1) # Their text underline
+curses.init_pair(4, color_schemes[settings['colorscheme']][3], -1) # Default box color
+curses.init_pair(5, color_schemes[settings['colorscheme']][4], -1) # Chat indicator color
+curses.init_pair(6, color_schemes[settings['colorscheme']][5], -1) # Unread indicator color
+curses.init_pair(7, color_schemes[settings['colorscheme']][6], -1) # Text color
+curses.init_pair(8, color_schemes[settings['colorscheme']][7], -1) # Hints box color
 
 h_height = 1
 h_width = cols
@@ -777,22 +789,26 @@ cbox_wrapper.addstr(0, settings['title_offset'], settings['chats_title'])
 
 cbox_wrapper.attron(curses.color_pair(4))
 cbox_wrapper.refresh()
-# cbox = curses.newpad(chats_height - 2, chats_width - 2)
+cbox_wrapper.attron(curses.color_pair(7))
 cbox = curses.newpad(chats_height, chats_width - 2)
 cbox.scrollok(True)
 
 mbox_wrapper = curses.newwin(messages_height, messages_width, messages_y, messages_x)
+mbox_wrapper.attron(curses.color_pair(4))
 mbox_wrapper.box()
 mbox_wrapper.addstr(0, settings['title_offset'], settings['messages_title'])
 mbox_wrapper.refresh()
+mbox_wrapper.attron(curses.color_pair(7))
 mbox = curses.newpad(messages_height - 2, messages_width - 2)
 mbox.scrollok(True)
 
 tbox = curses.newwin(t_height, t_width, t_y, t_x)
+tbox.attron(curses.color_pair(4))
 tbox.box()
 tbox.addstr(0, settings['title_offset'], settings['input_title'])
 tbox.keypad(1)
 tbox.refresh()
+tbox.attron(curses.color_pair(7))
 
 hbox = curses.newwin(h_height, h_width, h_y, h_x)
 
