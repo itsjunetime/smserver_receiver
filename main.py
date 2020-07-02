@@ -6,12 +6,12 @@ from multiprocessing.pool import ThreadPool
 import os
 import sys
 from datetime import datetime
-# import locale
 
 # TODO:
 # [ ] Extensively test text input
 # [ ] Set conversation to read on device when you view it on here
 # [ ] When scrolling up, position in mbox doesn't remain the same after refresh.
+# [ ] Add more nice-looking colorschemes
 
 settings = {
     'ip': '192.168.50.10',
@@ -30,13 +30,12 @@ settings = {
     'messages_title': '| messages |',
     'input_title': '| input here :) |',
     'help_title': '| help |',
-    'colorscheme': 'default',
+    'colorscheme': 'outrun',
     'help_inset': 5,
     'ping_interval': 60,
     'poll_exit': 0.5,
     'default_num_messages': 100,
     'default_num_chats': 30,
-    'buggy_mode': True,
     'debug': False,
     'has_authenticated': False
 }
@@ -382,37 +381,31 @@ def getTboxText():
     whole_string = ''
     right_offset = 0
     
-    # This whole section is a nightmare. But it still doesn't work. 
+    # This whole section is a nightmare. But it seems to work...?
     while True:
         ch = tbox.getch(1, min(1 + len(whole_string) - right_offset, t_width - 2) if len(whole_string) < t_width - 2 else t_width - 2 - right_offset)
         if (chr(ch) in ('j', 'J', '^[B') and len(whole_string) == 0) or ch in (curses.KEY_DOWN,):
             scrollDown()
         elif (chr(ch) in ('k', 'K', '^[A') and len(whole_string) == 0) or ch in (curses.KEY_UP,):
             scrollUp()
-        elif (chr(ch) in ('l', 'L', 'h', 'H') and len(whole_string) == 0) or (not settings['buggy_mode'] and ch in (curses.KEY_LEFT, curses.KEY_RIGHT)):
+        elif (chr(ch) in ('l', 'L', 'h', 'H') and len(whole_string) == 0): # or (not settings['buggy_mode'] and ch in (curses.KEY_LEFT, curses.KEY_RIGHT)):
             switchSelected()
         elif ch in (10, curses.KEY_ENTER):
             return whole_string
         elif ch in (127, curses.KEY_BACKSPACE):
-            if settings['buggy_mode']:
-                if right_offset == 0:
-                    whole_string = whole_string[:len(whole_string) - 1]
-                else:
-                    whole_string = whole_string[:len(whole_string) - right_offset - 1] + whole_string[len(whole_string) - right_offset:]
-                
-                tbox.addstr(1, 1, str(whole_string + ' '*max((t_width - len(whole_string) - 3), 0))[max((len(whole_string) - t_width + 3), 0):])
-            else:
+            if right_offset == 0:
                 whole_string = whole_string[:len(whole_string) - 1]
-                if len(whole_string) > t_width - 2:
-                    tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 1:])
-                else:
-                    tbox.addstr(1, len(whole_string) + 1, ' ')
-        elif ch in (curses.KEY_LEFT,) and settings['buggy_mode']:
+            else:
+                whole_string = whole_string[:len(whole_string) - right_offset - 1] + whole_string[len(whole_string) - right_offset:]
+                
+            tbox.addstr(1, 1, str(whole_string + ' '*max((t_width - len(whole_string) - 3), 0))[max((len(whole_string) - t_width + 3), 0):])
+
+        elif ch in (curses.KEY_LEFT,):
             right_offset += 1 if right_offset != len(whole_string) else 0
-        elif ch in (curses.KEY_RIGHT,) and settings['buggy_mode']:
+        elif ch in (curses.KEY_RIGHT,):
             right_offset -= 1 if right_offset > 0 else 0
         elif len(chr(ch)) == 1: 
-            if settings['buggy_mode'] and right_offset != 0:
+            if right_offset != 0:
                 whole_string = whole_string[:len(whole_string) - right_offset] + chr(ch) + whole_string[len(whole_string) - right_offset:]
             else:
                 whole_string += chr(ch)
@@ -421,6 +414,7 @@ def getTboxText():
                 tbox.addstr(1, 1, whole_string)
             else:
                 tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 3:])
+                
 
     return whole_string
 
@@ -453,25 +447,19 @@ def getTextText():
         elif ch in (10, curses.KEY_ENTER):
             return whole_string
         elif ch in (127, curses.KEY_BACKSPACE):
-            if settings['buggy_mode']:
-                if right_offset == 0:
-                    whole_string = whole_string[:len(whole_string) - 1]
-                else:
-                    whole_string = whole_string[:len(whole_string) - right_offset - 1] + whole_string[len(whole_string) - right_offset:]
-                
-                tbox.addstr(1, 1, str(whole_string + ' '*max((t_width - len(whole_string) - 3), 0))[max((len(whole_string) - t_width + 3), 0):])
-            else:
+            if right_offset == 0:
                 whole_string = whole_string[:len(whole_string) - 1]
-                if len(whole_string) > t_width - 2:
-                    tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 1:])
-                else:
-                    tbox.addstr(1, len(whole_string) + 1, ' ')
-        elif ch in (curses.KEY_LEFT,) and settings['buggy_mode']:
+            else:
+                whole_string = whole_string[:len(whole_string) - right_offset - 1] + whole_string[len(whole_string) - right_offset:]
+                
+            tbox.addstr(1, 1, str(whole_string + ' '*max((t_width - len(whole_string) - 3), 0))[max((len(whole_string) - t_width + 3), 0):])
+
+        elif ch in (curses.KEY_LEFT,):
             right_offset += 1 if right_offset != len(whole_string) else 0
-        elif ch in (curses.KEY_RIGHT,) and settings['buggy_mode']:
+        elif ch in (curses.KEY_RIGHT,):
             right_offset -= 1 if right_offset > 0 else 0
-        elif len(chr(ch)) == 1: 
-            if settings['buggy_mode'] and right_offset != 0:
+        elif len(chr(ch)) == 1:
+            if right_offset != 0:
                 whole_string = whole_string[:len(whole_string) - right_offset] + chr(ch) + whole_string[len(whole_string) - right_offset:]
             else:
                 whole_string += chr(ch)
@@ -568,7 +556,8 @@ def displayHelp():
     hbox_wrapper.attron(curses.color_pair(4))
     hbox_wrapper.refresh()
 
-    help_box = curses.newpad(text_rows + 2, help_width - 2) # was text_rows + 1
+    help_box = curses.newpad(text_rows + 2, help_width - 2)
+    help_box.keypad(1)
     top_offset = 0
 
     for n, m in enumerate(help_messages_wrapped):
@@ -582,10 +571,10 @@ def displayHelp():
 
     while True:
         c = screen.getch()
-        if chr(c) in ('j', 'J'):
+        if chr(c) in ('j', 'J', '^[B') or c == curses.KEY_DOWN:
             help_offset += 1 if help_offset < text_rows - help_height + 2 else 0 # Feel like it shouldn't be 3 but oh well
             help_box.refresh(help_offset, 0, help_y + 1, help_x + 1, help_y + help_height - 2, help_x + help_width - 1)
-        elif chr(c) in ('k', 'K'):
+        elif chr(c) in ('k', 'K', '^[A') or c == curses.KEY_UP:
             help_offset -= 1 if help_offset > 0 else 0
             help_box.refresh(help_offset, 0, help_y + 1, help_x + 1, help_y + help_height - 2, help_x + help_width - 2)
         elif chr(c) in ('q', 'Q'):
@@ -741,14 +730,8 @@ curses.use_default_colors()
 rows = curses.LINES
 cols = curses.COLS
 
-curses.init_pair(1, color_schemes[settings['colorscheme']][0], -1) # Selected box
-curses.init_pair(2, color_schemes[settings['colorscheme']][1], -1) # My text underline
-curses.init_pair(3, color_schemes[settings['colorscheme']][2], -1) # Their text underline
-curses.init_pair(4, color_schemes[settings['colorscheme']][3], -1) # Default box color
-curses.init_pair(5, color_schemes[settings['colorscheme']][4], -1) # Chat indicator color
-curses.init_pair(6, color_schemes[settings['colorscheme']][5], -1) # Unread indicator color
-curses.init_pair(7, color_schemes[settings['colorscheme']][6], -1) # Text color
-curses.init_pair(8, color_schemes[settings['colorscheme']][7], -1) # Hints box color
+for i in range(len(color_schemes['default'])):
+    curses.init_pair(i + 1, color_schemes[settings['colorscheme']][i], -1)
 
 h_height = 1
 h_width = cols
@@ -781,14 +764,7 @@ screen.refresh()
 cbox_wrapper = curses.newwin(cbox_wrapper_height, chats_width, chats_y, chats_x)
 cbox_wrapper.attron(curses.color_pair(1))
 cbox_wrapper.box()
-# corner = u'\u256d'
-# cbox_wrapper.border(0, 0, 0, 0, str(corner[0]), 0, 0, 0)
 cbox_wrapper.addstr(0, settings['title_offset'], settings['chats_title'])
-# cbox_wrapper.addstr(0, 0, u'\u256d')
-# cbox_wrapper.addstr(0, chats_width - 1, u'\u256e')
-# cbox_wrapper.addstr(t_y - 1, chats_width - 1, u'\u256f'[0])
-# cbox_wrapper.addnstr(t_y - 1, chats_width - 1, '╯', 1)
-# cbox_wrapper.addstr(t_y - 1, 0, u'\u2570')
 
 cbox_wrapper.attron(curses.color_pair(4))
 cbox_wrapper.refresh()
