@@ -36,7 +36,7 @@ settings = {
     'default_num_messages': 100,
     'default_num_chats': 30,
     'buggy_mode': True,
-    'debug': False,
+    'debug': True,
     'has_authenticated': False
 }
 
@@ -641,7 +641,7 @@ def openAttachment(num):
     global displayed_attachments
     if len(displayed_attachments) <= int(num): return
     http_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/attachments?path=' + str(displayed_attachments[int(num)]).replace(' ', '%20')
-    os.system('open ' + http_string) if 'darwin' in sys.platform else os.system('xdg-open ' + http_string)
+    os.system('open ' + http_string) if 'darwin' in sys.platform else os.system('xdg-open ' + http_string + ' &!')
 
 def pingServer():
     global chats

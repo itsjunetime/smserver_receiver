@@ -42,8 +42,8 @@ If you have issues with that, check to make sure that you've installed all of th
 - If you don't want to mess with anything, submit an issue report on github with the last message that was printed, and what your settings array looks like. 
 
 ### Acknowledged Issues
-- When scrolling up and loading more messages, the screen doesn't always remain at the same spot after refresh.
 - Messages with an attachment and no text have an extra blank line underneath them
+- The app will freeze when scrolled to lowest point in chats box
 
 ## Settings variables:
 - ip: This contains the private IP of your host device, as a string. Should start with '192.168' or '10.10'. 
