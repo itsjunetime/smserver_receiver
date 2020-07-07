@@ -431,9 +431,13 @@ def sendTextCmd(cmd):
     if new_text == '':
         updateHbox('cancelled; text was not sent.')
         return
-    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?send=' + new_text + '&to=' + current_chat_id
+    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?send=' + new_text + '&to=' + current_chat_id.replace("+", "%2B")
+    updateHbox('set req_string') if settings['debug'] else 0
     get(req_string)
     updateHbox('text sent!')
+    if current_chat_index != 0:
+        reloadChats()
+    loadMessages(current_chat_id)
 
 def getTextText():
     tbox.addstr(1, 1, ' '*(t_width - 2))
