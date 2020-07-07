@@ -59,6 +59,7 @@ If you have issues with that, check to make sure that you've installed all of th
 - chat_vertical_offset: This will the top inside padding for the chats box (the one on the far left)
 - title_offset: The left padding of each of the box titles
 - x_title: The title for $x box
+- colorscheme: The colorscheme for the interface. Check the variable color_schemes for the available colorscheme. The comments in the variable give details on each number, and each number is a curses color code.
 - help_inset: How much each help command description will be left-padded
 - ping_interval: How frequently (in seconds) the program will ping the server to see if there are any new messages
 - poll_exit: How frequently (in seconds) the program will check to see if you're trying to exit.

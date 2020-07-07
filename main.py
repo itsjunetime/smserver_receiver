@@ -6,12 +6,12 @@ from multiprocessing.pool import ThreadPool
 import os
 import sys
 from datetime import datetime
-# import locale
 
 # TODO:
 # [ ] Extensively test text input
 # [ ] Set conversation to read on device when you view it on here
 # [ ] When scrolling up, position in mbox doesn't remain the same after refresh.
+# [ ] Add more nice-looking colorschemes
 
 settings = {
     'ip': '192.168.50.10',
@@ -30,13 +30,13 @@ settings = {
     'messages_title': '| messages |',
     'input_title': '| input here :) |',
     'help_title': '| help |',
+    'colorscheme': 'outrun',
     'help_inset': 5,
     'ping_interval': 60,
     'poll_exit': 0.5,
     'default_num_messages': 100,
     'default_num_chats': 30,
-    'buggy_mode': True,
-    'debug': True,
+    'debug': False,
     'has_authenticated': False
 }
 
@@ -64,6 +64,14 @@ help_message = ['COMMANDS:',
 ':r, :R, reload - ',
 'this reloads the chats, getting current chats from the currently set ip address and port.',
 'if characters are not appearing, or the program is acting weird, just type a bunch of random characters and hit enter. No harm will be done for a bad command. For more information, visit: https://github.com/iandwelker/smserver_receiver']
+
+color_schemes = {
+    # [0]: Selected box, [1]: My text underline, [2]: their text underline
+    # [3]: Unselected box, [4]: Chat indicator color, [5]: Unread indicator color,
+    # [6]: Text color, [7]: Hints box color
+    "default": [6, 39, 248, -1, 219, 39, 231, 9],
+    "outrun": [211, 165, 238, 6, 228, 205, 189, 198],
+}
 
 print('Loading ...')
 
@@ -196,9 +204,9 @@ def loadInChats():
         if vert_pad >= chats_height - 1:
             break
         try:
-            cbox.addstr(vert_pad, 1, str(n))
-            cbox.addstr(vert_pad, chat_offset - 2, '•') if c.has_unread else 0
-            cbox.addstr(vert_pad, chat_offset, d_name)
+            cbox.addstr(vert_pad, 1, str(n), curses.color_pair(7))
+            cbox.addstr(vert_pad, chat_offset - 2, '•',curses.color_pair(5)) if c.has_unread else 0
+            cbox.addstr(vert_pad, chat_offset, d_name, curses.color_pair(7))
         except curses.error:
             updateHbox('failed to add chat ' + str(n) + ' to box') if settings['debug'] else 0
 
@@ -326,7 +334,7 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
             updateHbox('checking timestamps on item ' + str(n + 1)) if settings['debug'] else 0
             time_string = getDate(m.timestamp)
             updateHbox('got string on item ' + str(n + 1) + '. m=' + str(m.timestamp) + ' & n+1=' + str(messages[n-1].timestamp)) if settings['debug'] else 0
-            mbox.addstr(top_offset, int((messages_width - 2 - len(time_string)) / 2), time_string)
+            mbox.addstr(top_offset, int((messages_width - 2 - len(time_string)) / 2), time_string, curses.color_pair(7))
             updateHbox('added time string on item ' + str(n)) if settings['debug'] else 0
             top_offset += 2
 
@@ -336,13 +344,13 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
             underline = settings['chat_underline']*(text_width - len(settings['my_chat_end'])) + settings['my_chat_end']
 
         for i in range(len(m.attachments)):
-            mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, 'Attachment ' + str(len(displayed_attachments)) + ': ' + m.attachment_types[i])
+            mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, 'Attachment ' + str(len(displayed_attachments)) + ': ' + m.attachment_types[i], curses.color_pair(7))
             displayed_attachments.append(m.attachments[i])
             top_offset += 1
             # So I feel like I should increment top_offset here but I guess not?
 
         for j, l in enumerate(m.content):
-            mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, l)
+            mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, l, curses.color_pair(7))
             top_offset += 1 if l != ' ' else -1
 
         updateHbox('settings underline on item %d' % n) if settings['debug'] else 0
@@ -373,37 +381,31 @@ def getTboxText():
     whole_string = ''
     right_offset = 0
     
-    # This whole section is a nightmare. But it still doesn't work. 
+    # This whole section is a nightmare. But it seems to work...?
     while True:
         ch = tbox.getch(1, min(1 + len(whole_string) - right_offset, t_width - 2) if len(whole_string) < t_width - 2 else t_width - 2 - right_offset)
         if (chr(ch) in ('j', 'J', '^[B') and len(whole_string) == 0) or ch in (curses.KEY_DOWN,):
             scrollDown()
         elif (chr(ch) in ('k', 'K', '^[A') and len(whole_string) == 0) or ch in (curses.KEY_UP,):
             scrollUp()
-        elif (chr(ch) in ('l', 'L', 'h', 'H') and len(whole_string) == 0) or (not settings['buggy_mode'] and ch in (curses.KEY_LEFT, curses.KEY_RIGHT)):
+        elif (chr(ch) in ('l', 'L', 'h', 'H') and len(whole_string) == 0): # or (not settings['buggy_mode'] and ch in (curses.KEY_LEFT, curses.KEY_RIGHT)):
             switchSelected()
         elif ch in (10, curses.KEY_ENTER):
             return whole_string
         elif ch in (127, curses.KEY_BACKSPACE):
-            if settings['buggy_mode']:
-                if right_offset == 0:
-                    whole_string = whole_string[:len(whole_string) - 1]
-                else:
-                    whole_string = whole_string[:len(whole_string) - right_offset - 1] + whole_string[len(whole_string) - right_offset:]
-                
-                tbox.addstr(1, 1, str(whole_string + ' '*max((t_width - len(whole_string) - 3), 0))[max((len(whole_string) - t_width + 3), 0):])
-            else:
+            if right_offset == 0:
                 whole_string = whole_string[:len(whole_string) - 1]
-                if len(whole_string) > t_width - 2:
-                    tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 1:])
-                else:
-                    tbox.addstr(1, len(whole_string) + 1, ' ')
-        elif ch in (curses.KEY_LEFT,) and settings['buggy_mode']:
+            else:
+                whole_string = whole_string[:len(whole_string) - right_offset - 1] + whole_string[len(whole_string) - right_offset:]
+                
+            tbox.addstr(1, 1, str(whole_string + ' '*max((t_width - len(whole_string) - 3), 0))[max((len(whole_string) - t_width + 3), 0):])
+
+        elif ch in (curses.KEY_LEFT,):
             right_offset += 1 if right_offset != len(whole_string) else 0
-        elif ch in (curses.KEY_RIGHT,) and settings['buggy_mode']:
+        elif ch in (curses.KEY_RIGHT,):
             right_offset -= 1 if right_offset > 0 else 0
         elif len(chr(ch)) == 1: 
-            if settings['buggy_mode'] and right_offset != 0:
+            if right_offset != 0:
                 whole_string = whole_string[:len(whole_string) - right_offset] + chr(ch) + whole_string[len(whole_string) - right_offset:]
             else:
                 whole_string += chr(ch)
@@ -412,6 +414,7 @@ def getTboxText():
                 tbox.addstr(1, 1, whole_string)
             else:
                 tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 3:])
+                
 
     return whole_string
 
@@ -428,9 +431,13 @@ def sendTextCmd(cmd):
     if new_text == '':
         updateHbox('cancelled; text was not sent.')
         return
-    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?send=' + new_text + '&to=' + current_chat_id
+    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?send=' + new_text + '&to=' + current_chat_id.replace("+", "%2B")
+    updateHbox('set req_string') if settings['debug'] else 0
     get(req_string)
     updateHbox('text sent!')
+    if current_chat_index != 0:
+        reloadChats()
+    loadMessages(current_chat_id)
 
 def getTextText():
     tbox.addstr(1, 1, ' '*(t_width - 2))
@@ -444,25 +451,19 @@ def getTextText():
         elif ch in (10, curses.KEY_ENTER):
             return whole_string
         elif ch in (127, curses.KEY_BACKSPACE):
-            if settings['buggy_mode']:
-                if right_offset == 0:
-                    whole_string = whole_string[:len(whole_string) - 1]
-                else:
-                    whole_string = whole_string[:len(whole_string) - right_offset - 1] + whole_string[len(whole_string) - right_offset:]
-                
-                tbox.addstr(1, 1, str(whole_string + ' '*max((t_width - len(whole_string) - 3), 0))[max((len(whole_string) - t_width + 3), 0):])
-            else:
+            if right_offset == 0:
                 whole_string = whole_string[:len(whole_string) - 1]
-                if len(whole_string) > t_width - 2:
-                    tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 1:])
-                else:
-                    tbox.addstr(1, len(whole_string) + 1, ' ')
-        elif ch in (curses.KEY_LEFT,) and settings['buggy_mode']:
+            else:
+                whole_string = whole_string[:len(whole_string) - right_offset - 1] + whole_string[len(whole_string) - right_offset:]
+                
+            tbox.addstr(1, 1, str(whole_string + ' '*max((t_width - len(whole_string) - 3), 0))[max((len(whole_string) - t_width + 3), 0):])
+
+        elif ch in (curses.KEY_LEFT,):
             right_offset += 1 if right_offset != len(whole_string) else 0
-        elif ch in (curses.KEY_RIGHT,) and settings['buggy_mode']:
+        elif ch in (curses.KEY_RIGHT,):
             right_offset -= 1 if right_offset > 0 else 0
-        elif len(chr(ch)) == 1: 
-            if settings['buggy_mode'] and right_offset != 0:
+        elif len(chr(ch)) == 1:
+            if right_offset != 0:
                 whole_string = whole_string[:len(whole_string) - right_offset] + chr(ch) + whole_string[len(whole_string) - right_offset:]
             else:
                 whole_string += chr(ch)
@@ -474,7 +475,7 @@ def getTextText():
 
 def updateHbox(string):
     hbox.clear()
-    hbox.addstr(0, 0, string)
+    hbox.addstr(0, 0, string, curses.color_pair(8))
     hbox.refresh()
 
 def switchSelected():
@@ -559,7 +560,8 @@ def displayHelp():
     hbox_wrapper.attron(curses.color_pair(4))
     hbox_wrapper.refresh()
 
-    help_box = curses.newpad(text_rows + 2, help_width - 2) # was text_rows + 1
+    help_box = curses.newpad(text_rows + 2, help_width - 2)
+    help_box.keypad(1)
     top_offset = 0
 
     for n, m in enumerate(help_messages_wrapped):
@@ -573,10 +575,10 @@ def displayHelp():
 
     while True:
         c = screen.getch()
-        if chr(c) in ('j', 'J'):
+        if chr(c) in ('j', 'J', '^[B') or c == curses.KEY_DOWN:
             help_offset += 1 if help_offset < text_rows - help_height + 2 else 0 # Feel like it shouldn't be 3 but oh well
             help_box.refresh(help_offset, 0, help_y + 1, help_x + 1, help_y + help_height - 2, help_x + help_width - 1)
-        elif chr(c) in ('k', 'K'):
+        elif chr(c) in ('k', 'K', '^[A') or c == curses.KEY_UP:
             help_offset -= 1 if help_offset > 0 else 0
             help_box.refresh(help_offset, 0, help_y + 1, help_x + 1, help_y + help_height - 2, help_x + help_width - 2)
         elif chr(c) in ('q', 'Q'):
@@ -602,6 +604,11 @@ def setVar(cmd):
     secondSpace = cmd.find(' ', firstSpace + 1)
     var = cmd[firstSpace + 1:secondSpace]
     val = cmd[secondSpace + 1:]
+    oldval = settings[var]
+
+    if var == 'colorscheme' and val not in color_schemes.keys():
+        updateHbox(val + ' is not an existing colorscheme.')
+        return
 
     if var not in settings:
         updateHbox('variable (' + var + ') not found.')
@@ -627,6 +634,16 @@ def setVar(cmd):
         updateHbox('type is str') if settings['debug'] else 0
         settings[var] = val
     
+    if type(oldval) == str:
+        val = "'" + val + "'"
+        oldval = "'" + oldval + "'"
+    elif type(oldval) == bool:
+        val = 'True' if val in ('true', 'True') else 'False'
+    
+    if sys.platform == 'linux':
+        sed_string = 'sed -i "s/\'' + var + '\': ' + str(oldval) + ',/\'' + var + '\': ' + str(val) + ',/" ' + os.path.basename(__file__)
+        os.system(sed_string)
+
     updateHbox('updated ' + var + ' to ' + val)
 
 def showVar(cmd):
@@ -717,11 +734,8 @@ curses.use_default_colors()
 rows = curses.LINES
 cols = curses.COLS
 
-curses.init_pair(1, 75, -1)
-curses.init_pair(2, curses.COLOR_BLUE, -1)
-curses.init_pair(3, 248, -1)
-curses.init_pair(4, curses.COLOR_WHITE, -1)
-curses.init_pair(5, 219, -1)
+for i in range(len(color_schemes['default'])):
+    curses.init_pair(i + 1, color_schemes[settings['colorscheme']][i], -1)
 
 h_height = 1
 h_width = cols
@@ -735,7 +749,6 @@ t_y = rows - t_height - h_height
 
 min_chat_width = 24
 chats_width = int(cols * 0.3) if cols * 0.3 > min_chat_width else min_chat_width
-# chats_height = (len(chats) * chat_padding) + settings['chat_vertical_offset']
 chats_height = (len(chats) + settings['chat_vertical_offset']) * chat_padding
 print('chats_height: %d' % chats_height) if settings['debug'] else 0
 sleep(1) if settings['debug'] else 0
@@ -755,33 +768,30 @@ screen.refresh()
 cbox_wrapper = curses.newwin(cbox_wrapper_height, chats_width, chats_y, chats_x)
 cbox_wrapper.attron(curses.color_pair(1))
 cbox_wrapper.box()
-# corner = u'\u256d'
-# cbox_wrapper.border(0, 0, 0, 0, str(corner[0]), 0, 0, 0)
 cbox_wrapper.addstr(0, settings['title_offset'], settings['chats_title'])
-# cbox_wrapper.addstr(0, 0, u'\u256d')
-# cbox_wrapper.addstr(0, chats_width - 1, u'\u256e')
-# cbox_wrapper.addstr(t_y - 1, chats_width - 1, u'\u256f'[0])
-# cbox_wrapper.addnstr(t_y - 1, chats_width - 1, '╯', 1)
-# cbox_wrapper.addstr(t_y - 1, 0, u'\u2570')
 
 cbox_wrapper.attron(curses.color_pair(4))
 cbox_wrapper.refresh()
-# cbox = curses.newpad(chats_height - 2, chats_width - 2)
+cbox_wrapper.attron(curses.color_pair(7))
 cbox = curses.newpad(chats_height, chats_width - 2)
 cbox.scrollok(True)
 
 mbox_wrapper = curses.newwin(messages_height, messages_width, messages_y, messages_x)
+mbox_wrapper.attron(curses.color_pair(4))
 mbox_wrapper.box()
 mbox_wrapper.addstr(0, settings['title_offset'], settings['messages_title'])
 mbox_wrapper.refresh()
+mbox_wrapper.attron(curses.color_pair(7))
 mbox = curses.newpad(messages_height - 2, messages_width - 2)
 mbox.scrollok(True)
 
 tbox = curses.newwin(t_height, t_width, t_y, t_x)
+tbox.attron(curses.color_pair(4))
 tbox.box()
 tbox.addstr(0, settings['title_offset'], settings['input_title'])
 tbox.keypad(1)
 tbox.refresh()
+tbox.attron(curses.color_pair(7))
 
 hbox = curses.newwin(h_height, h_width, h_y, h_x)
 
