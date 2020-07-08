@@ -30,7 +30,7 @@ settings = {
     'messages_title': '| messages |',
     'input_title': '| input here :) |',
     'help_title': '| help |',
-    'colorscheme': 'outrun',
+    'colorscheme': 'coral',
     'help_inset': 5,
     'ping_interval': 60,
     'poll_exit': 0.5,
@@ -71,6 +71,7 @@ color_schemes = {
     # [6]: Text color, [7]: Hints box color
     "default": [6, 39, 248, -1, 219, 39, 231, 9],
     "outrun": [211, 165, 238, 6, 228, 205, 189, 198],
+    "coral": [202, 117, 251, 208, 207, 73, 7, 219]
 }
 
 print('Loading ...')
@@ -484,17 +485,17 @@ def switchSelected():
     global cbox_offset
     selected_box = 'c' if selected_box == 'm' else 'm'
 
-    mbox_wrapper.attron(curses.color_pair(1)) if selected_box == 'm' else 0
+    mbox_wrapper.attron(curses.color_pair(1)) if selected_box == 'm' else mbox_wrapper.attron(curses.color_pair(4))
     mbox_wrapper.box()
     mbox_wrapper.addstr(0, settings['title_offset'], settings['messages_title'])
-    mbox_wrapper.attron(curses.color_pair(4)) if selected_box == 'm' else 0
+    mbox_wrapper.attron(curses.color_pair(4)) if selected_box == 'm' else mbox_wrapper.attron(curses.color_pair(1))
     mbox_wrapper.refresh()
     refreshMBox(mbox_offset)
 
-    cbox_wrapper.attron(curses.color_pair(1)) if selected_box == 'c' else 0
+    cbox_wrapper.attron(curses.color_pair(1)) if selected_box == 'c' else cbox_wrapper.attron(curses.color_pair(4))
     cbox_wrapper.box()
     cbox_wrapper.addstr(0, settings['title_offset'], settings['chats_title'])
-    cbox_wrapper.attron(curses.color_pair(4)) if selected_box == 'c' else 0
+    cbox_wrapper.attron(curses.color_pair(4)) if selected_box == 'c' else cbox_wrapper.attron(curses.color_pair(1))
     cbox_wrapper.refresh()
     refreshCBox(cbox_offset)
 
