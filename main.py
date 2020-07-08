@@ -30,7 +30,7 @@ settings = {
     'messages_title': '| messages |',
     'input_title': '| input here :) |',
     'help_title': '| help |',
-    'colorscheme': 'coral',
+    'colorscheme': 'outrun',
     'help_inset': 5,
     'ping_interval': 60,
     'poll_exit': 0.5,
@@ -71,7 +71,7 @@ color_schemes = {
     # [3]: Unselected box, [4]: Chat indicator color, [5]: Unread indicator color,
     # [6]: Text color, [7]: Hints box color
     "default": [6, 39, 248, -1, 219, 39, 231, 9],
-    "outrun": [211, 165, 238, 6, 228, 205, 189, 198],
+    "outrun": [211, 165, 238, 6, 228, 205, 231, 209],
     "coral": [202, 117, 251, 208, 207, 73, 7, 79]
 }
 
@@ -453,7 +453,7 @@ def sendTextCmd(cmd):
     updateHbox('text sent!')
     if current_chat_index != 0:
         reloadChats()
-    loadMessages(current_chat_id)
+    # loadMessages(current_chat_id)
 
 def getTextText():
     tbox.addstr(1, 1, ' '*(t_width - 2))
@@ -565,7 +565,7 @@ def displayHelp():
     help_messages_wrapped = [[]]
     
     for n, l in enumerate(help_message):
-        help_messages_wrapped.append(wrap(l, help_width - 2) if n % 2 == 0 and not n == 0 else wrap(l, help_width - 2 - settings['help_inset']))
+        help_messages_wrapped.append(wrap(l, help_width - 2) if n % 2 == 1 and not n == 0 else wrap(l, help_width - 2 - settings['help_inset']))
 
     text_rows = sum(len(m) for m in help_messages_wrapped)
 
@@ -582,7 +582,7 @@ def displayHelp():
 
     for n, m in enumerate(help_messages_wrapped):
         for r in m:
-            help_box.addstr(top_offset, 0, r if n % 2 == 0 and not n == 0 else ' '*settings['help_inset'] + r)
+            help_box.addstr(top_offset, 0, r if n % 2 == 0 or n == 1 else ' '*settings['help_inset'] + r) # Why is the first line n == 1? Why are they negative when n%2==0? Idk
             top_offset += 1
 
     help_box.refresh(help_offset, 0, help_y + 1, help_x + 1, help_y + help_height - 2, help_x + help_width - 2)
@@ -659,6 +659,9 @@ def setVar(cmd):
     if sys.platform == 'linux':
         sed_string = 'sed -i "s/\'' + var + '\': ' + str(oldval) + ',/\'' + var + '\': ' + str(val) + ',/" ' + os.path.basename(__file__)
         os.system(sed_string)
+    else:
+        sed_string = 'sed -i \'\' -e "s+\'' + var + '\': ' + str(oldval) + '+\'' + var + '\': ' + str(val) + '+" ' + os.path.basename(__file__)
+        os.system(sed_string)
 
     updateHbox('updated ' + var + ' to ' + val)
 
@@ -698,6 +701,9 @@ def mainTask():
     global past_commands
     global end_all
     while not end_all:
+        if len(past_commands) > 0 and past_commands[0][:2] in (':s', ':S'):
+            loadMessages(current_chat_id)
+
         cmd = getTboxText()
         if len(cmd) == 0:
             updateHbox('command cancelled.')
