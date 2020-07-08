@@ -388,7 +388,7 @@ def getTboxText():
             scrollDown()
         elif (chr(ch) in ('k', 'K', '^[A') and len(whole_string) == 0) or ch in (curses.KEY_UP,):
             scrollUp()
-        elif (chr(ch) in ('l', 'L', 'h', 'H') and len(whole_string) == 0): # or (not settings['buggy_mode'] and ch in (curses.KEY_LEFT, curses.KEY_RIGHT)):
+        elif (chr(ch) in ('l', 'L', 'h', 'H') and len(whole_string) == 0): 
             switchSelected()
         elif ch in (10, curses.KEY_ENTER):
             return whole_string
@@ -397,13 +397,13 @@ def getTboxText():
                 whole_string = whole_string[:len(whole_string) - 1]
             else:
                 whole_string = whole_string[:len(whole_string) - right_offset - 1] + whole_string[len(whole_string) - right_offset:]
-                
             tbox.addstr(1, 1, str(whole_string + ' '*max((t_width - len(whole_string) - 3), 0))[max((len(whole_string) - t_width + 3), 0):])
-
         elif ch in (curses.KEY_LEFT,):
             right_offset += 1 if right_offset != len(whole_string) else 0
         elif ch in (curses.KEY_RIGHT,):
             right_offset -= 1 if right_offset > 0 else 0
+        elif ch in (27, curses.KEY_CANCEL):
+            return ''
         elif len(chr(ch)) == 1: 
             if right_offset != 0:
                 whole_string = whole_string[:len(whole_string) - right_offset] + chr(ch) + whole_string[len(whole_string) - right_offset:]
@@ -700,6 +700,8 @@ def mainTask():
             openAttachment(cmd[3:])
         elif cmd in (':q', ':Q', 'exit', 'quit'):
             break
+        elif len(cmd) == 0:
+            updateHbox('command canceled.')
         else:
             updateHbox('sorry, this command isn\'t supported .')
     
