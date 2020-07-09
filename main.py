@@ -349,7 +349,6 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
             mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, 'Attachment ' + str(len(displayed_attachments)) + ': ' + m.attachment_types[i], curses.color_pair(7))
             displayed_attachments.append(m.attachments[i])
             top_offset += 1
-            # So I feel like I should increment top_offset here but I guess not?
 
         for j, l in enumerate(m.content):
             mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, l, curses.color_pair(7))
@@ -453,7 +452,6 @@ def sendTextCmd(cmd):
     updateHbox('text sent!')
     if current_chat_index != 0:
         reloadChats()
-    # loadMessages(current_chat_id)
 
 def getTextText():
     tbox.addstr(1, 1, ' '*(t_width - 2))
