@@ -1,10 +1,14 @@
 import curses
-from requests import get
+import os
+import sys
+import re
+import magic
+import pdb
+from requests import get, post
 from textwrap import wrap
 from time import sleep
 from multiprocessing.pool import ThreadPool
-import os
-import sys
+from subprocess import DEVNULL, STDOUT, check_call
 from datetime import datetime
 
 # TODO:
@@ -18,6 +22,7 @@ settings = {
     'port': '8741',
     'pass': 'toor',
     'req': 'requests',
+    'post': 'uploads',
     'chats_scroll_factor': 2,
     'messages_scroll_factor': 5,
     'current_chat_indicator': '>',
@@ -32,11 +37,11 @@ settings = {
     'help_title': '| help |',
     'colorscheme': 'outrun',
     'help_inset': 5,
-    'ping_interval': 60,
+    'ping_interval': 10,
     'poll_exit': 0.5,
     'default_num_messages': 100,
     'default_num_chats': 30,
-    'debug': False,
+    'debug': True,
     'max_past_commands': 10,
     'has_authenticated': False
 }
@@ -48,14 +53,16 @@ help_message = ['COMMANDS:',
 'scrolls down in the selected window',
 'k, K - ',
 'scrolls up in the selected window',
-':f, h, l - ',
+'h, l - ',
 'switches selected window between messages and conversations',
 ':q, exit, quit - ',
 'exits the window, cleaning up. recommended over ctrl+c.',
-':s, :S, send - ',
-'starts the process for sending a text with the currently selected conversation. after you hit enter on \':s\', You will then be able to input the content of your text, and hit <enter> once you are ready to send it, or hit <esc> to cancel. You can also enter enter your text with a space between it and the \':s\', e.g.: \':s hello!\'',
 ':c, :C, chat - ',
 'this should be immediately followed by a number, specifically the index of the conversation whose texts you want to view. the indices are displayed to the left of each conversation in the leftmost box. eg \':c 25\'',
+':s, :S, send - ',
+'starts the process for sending a text with the currently selected conversation. after you hit enter on \':s\', You will then be able to input the content of your text, and hit <enter> once you are ready to send it, or hit <esc> to cancel. You can also enter enter your text with a space between it and the \':s\', e.g.: \':s hello!\'',
+':f, :F, file - ',
+'sends attachments to the specified chat. Specify the files specifically as full path strings, surrounded by single or double quotes, e.g. "/home/user/Documents/file.txt" or \'/home/user/Pictures/file.jpeg\'. You can select multiple files, and they will all be send in the order that they were specified.',
 ':a, :A - ',
 'this, along with the number of the attachment, will open the selected attachment in your browser. For example, if you see \'Attachment 5: image/jpeg\', type \':a 5\' and the attachment will be opened to be viewed in your browser',
 ':b, :B, bind - ',
@@ -91,8 +98,9 @@ class Message:
     timestamp = 0
     attachments = []
     attachment_types = []
+    sender = ''
 
-    def __init__(self, c = [], ts = 0, fm = True, att = '', att_t = ''):
+    def __init__(self, c = [], ts = 0, fm = True, att = '', att_t = '', s = ''):
         self.from_me = fm
         self.content = c
         self.timestamp = int(int(ts) / 1000000000 + 978307200) # This will auto-convert it to unix timestamp
@@ -100,25 +108,27 @@ class Message:
         self.attachments = pa[:len(pa) - 1]
         pa_t = att_t.split(':')
         self.attachment_types = pa_t[:len(pa_t) - 1]
+        self.sender = s
 
 class Chat:
     """A conversation"""
     chat_id = ''
     display_name = ''
     has_unread = False
-    recipients = {} # Would normally just be the chatid of the one recipient.
+    # recipients = {} # Would normally just be the chatid of the one recipient.
 
-    def __init__(self, ci = '', rc = {}, dn = '', un = False):
+    def __init__(self, ci = '', dn = '', un = False):
         self.chat_id = ci
         self.display_name = dn
-        self.recipients[ci] = dn
-        self.recipients.update(rc)
+        # self.recipients[ci] = dn
+        # self.recipients.update(rc)
         self.has_unread = un
 
 chats = []
 messages = []
 displayed_attachments = []
 past_commands = []
+
 current_chat_id = ''
 current_chat_index = 0
 num_requested_chats = 0
@@ -169,7 +179,7 @@ def getChats(num = settings['default_num_chats'], offset = 0):
     return_val = []
     for i in chat_items:
         # I need to start returning recipients to this request so I can initialize chats with them
-        new_chat = Chat(i['chat_identifier'], {}, i['display_name'], False if i['has_unread'] == "false" else True)
+        new_chat = Chat(i['chat_identifier'], i['display_name'], False if i['has_unread'] == "false" else True)
         return_val.append(new_chat)
         if settings['debug']: print("new chat:")
         if settings['debug']: print(new_chat)
@@ -250,6 +260,7 @@ def selectChat(cmd):
         updateHbox('that index is out of range. please load more chats or try again')
         return
 
+    if settings['debug']: updateHbox('Selected chat with ' + cmd)
     cbox.addstr((current_chat_index * 2) + settings['chat_vertical_offset'], chat_offset - 2, ' ')
     cbox.addstr((num * 2) + settings['chat_vertical_offset'], chat_offset - 2, settings['current_chat_indicator'], curses.color_pair(5))
     refreshCBox(cbox_offset)
@@ -273,12 +284,13 @@ def getMessages(id, num = settings['default_num_messages'], offset = 0):
         try:
             att = i['attachment_file'] if 'attachment_file' in i.keys() else ''
             att_t = i['attachment_type'] if 'attachment_type' in i.keys() else ''
-            new_m = Message(wrap(i['text'], single_width), i['date'], True if i['is_from_me'] == '1' else False, att, att_t)
+            s = i['sender'] if i['sender'] != 'nil' else ''
+            new_m = Message(wrap(i['text'], single_width), i['date'], True if i['is_from_me'] == '1' else False, att, att_t, s)
             return_val.append(new_m)
         except:
             updateHbox('failed to get message from index %d' % n)
             pass
-        if settings['debug']: updateHbox('unpacking item ' + str(n + 1) + '/' + str(len(message_items)))
+        if settings['debug']: updateHbox('unpacking item ' + str(n + 1) + '/' + str(len(message_items)) + ', val[:3] is ' + i['text'][:3])
 
     return_val.reverse()
     return return_val
@@ -297,12 +309,14 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
     else:
         messages = getMessages(id, num, len(messages)) + messages
 
+    # I think messages are reversed at this point...? Actually no?
     total_messages_height = 0 # I think? It used to be 0 but setting it to offset may make it be cool
     for n, m in enumerate(messages):
         total_messages_height += len(m.content)
-        total_messages_height += len(m.attachments) if len(m.attachments) > 0 else 0
-        total_messages_height += 2
+        total_messages_height += len(m.attachments) if len(m.content) > 0 else len(m.attachments) + 1
+        total_messages_height += 2 if n == len(messages) - 1 or m.sender != messages[n + 1].sender else 1
         total_messages_height += 2 if n == 0 or m.timestamp - messages[n - 1].timestamp >= 3600 else 0
+        total_messages_height += 1 if m.sender != '' and n != 0 and m.sender != messages[n - 1].sender else 0
 
     top_offset = 1
     if settings['debug']: updateHbox('set top offset')
@@ -330,7 +344,7 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
         if settings['debug']: updateHbox('passed text_width for item ' + str(n + 1))
         left_padding = 0
         underline = settings['their_chat_end'] + settings['chat_underline']*(text_width - len(settings['their_chat_end']) + 1)
-        if settings['debug']: updateHbox('set first section of message ' + str(n + 1))
+        if settings['debug']: updateHbox('set first section of message ' + str(n + 1) + ', to = ' + str(top_offset) + ', h = ' + str(total_messages_height))
 
         if n == 0 or m.timestamp - messages[n - 1].timestamp >= 3600:
             if settings['debug']: updateHbox('checking timestamps on item ' + str(n + 1))
@@ -345,18 +359,24 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
             left_padding = messages_width - 3 - text_width # I feel like it shouldn't be 3 but ok
             underline = settings['chat_underline']*(text_width - len(settings['my_chat_end'])) + settings['my_chat_end']
 
+        if m.sender != '' and n != 0 and m.sender != messages[n - 1].sender:
+            mbox.addstr(top_offset, left_padding, m.sender)
+            top_offset += 1
+
         for i in range(len(m.attachments)):
             mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, 'Attachment ' + str(len(displayed_attachments)) + ': ' + m.attachment_types[i], curses.color_pair(7))
-            displayed_attachments.append(m.attachments[i])
+            displayed_attachments.append(str(m.attachments[i]))
             top_offset += 1
 
         for j, l in enumerate(m.content):
             mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, l, curses.color_pair(7))
-            top_offset += 1 if l != ' ' else -1
+            top_offset += 1
+
+        if n == len(messages) - 1 or m.sender == messages[n + 1].sender: underline = settings['chat_underline']*len(underline)
 
         if settings['debug']: updateHbox('settings underline on item %d' % n)
         mbox.addstr(top_offset, left_padding, underline, curses.color_pair(2) if m.from_me else curses.color_pair(3)) if text_width > 0 else 0
-        top_offset += 2
+        top_offset += 2 if n != len(messages) - 1 and m.sender != messages[n + 1].sender else 1
 
         if settings['debug']: updateHbox('added text ' + str(n) + '/' + str(num))
 
@@ -386,9 +406,9 @@ def getTboxText():
     
     # This whole section is a nightmare. But it seems to work...?
     while True:
-        if settings['debug']: updateHbox('entered True; pco is ' + str(past_command_offset) + ', len is ' + str(len(past_commands)))
+        # if settings['debug']: updateHbox('entered True; pco is ' + str(past_command_offset) + ', len is ' + str(len(past_commands)))
         ch = tbox.getch(1, min(1 + len(whole_string) - right_offset, t_width - 2) if len(whole_string) < t_width - 2 else t_width - 2 - right_offset)
-        if settings['debug']: updateHbox('ch is ' + chr(ch))
+        # if settings['debug']: updateHbox('ch is ' + chr(ch))
         if (chr(ch) in ('j', 'J', '^[B') and len(whole_string) == 0):
             scrollDown()
         elif (chr(ch) in ('k', 'K', '^[A') and len(whole_string) == 0):
@@ -397,12 +417,12 @@ def getTboxText():
             switchSelected()
         elif ch in (curses.KEY_UP,) and len(past_commands) > 0:
             past_command_offset += 1 if past_command_offset < len(past_commands) - 1 else 0
-            whole_string = past_commands[min(past_command_offset, settings['max_past_commands'] - 1)]
+            whole_string = past_commands[min(past_command_offset, settings['max_past_commands'] - 1)][:t_width - 2]
             if settings['debug']: updateHbox('up; set whole_string, pco is ' + str(past_command_offset))
             tbox.addstr(1, 1, whole_string + ' '*(t_width - 2 - len(whole_string)))
         elif ch in (curses.KEY_DOWN,):
             past_command_offset -= 1 if past_command_offset >= 0 else 0
-            whole_string = past_commands[past_command_offset] if past_command_offset != -1 else ''
+            whole_string = past_commands[past_command_offset][:t_width - 2] if past_command_offset != -1 else ''
             if settings['debug']: updateHbox('down; set whole_string, pco is ' + str(past_command_offset))
             tbox.addstr(1, 1, whole_string + ' '*(t_width - 2 - len(whole_string)))
         elif ch in (10, curses.KEY_ENTER):
@@ -430,7 +450,7 @@ def getTboxText():
             else:
                 tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 3:])
                 
-
+    if settings['debug']: updateHbox('returning whole_string from tbox')
     return whole_string
 
 def sendTextCmd(cmd):
@@ -446,12 +466,46 @@ def sendTextCmd(cmd):
     if new_text == '':
         updateHbox('cancelled; text was not sent.')
         return
-    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?send=' + new_text + '&to=' + current_chat_id.replace("+", "%2B")
+        
+    vals = {'text': 'text:' + new_text, 'chat': 'chat:' + current_chat_id}
+    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
     if settings['debug']: updateHbox('set req_string')
-    get(req_string)
+    post(req_string, files={"attachments": (None, '0')}, data=vals) # You have to put some value for files or the server will crash; idk why bro
     updateHbox('text sent!')
     if current_chat_index != 0:
         reloadChats()
+
+def sendFileCmd(cmd):
+    global current_chat_id
+    updateHbox('entered file cmd')
+
+    if current_chat_id == '':
+        updateHbox('you have not selected a conversation. please do so before attempting to send texts')
+        return
+
+    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
+    vals = {'chat': 'chat:' + current_chat_id}
+    strings = [f for f in re.split('\'|"', cmd[3:]) if len(f.strip()) != 0]
+    files = []
+
+    updateHbox('set initiail vars')
+
+    for f in strings:
+        if not os.path.isfile(f):
+            updateHbox('one of your files did not exist, please try again')
+            return
+        mime_type = magic.Magic(mime=True).from_file(f)
+        filename = f.split('/')[-1]
+        files.append((filename, open(f, 'rb'), mime_type))
+        updateHbox('appending ' + f + ', ' + mime_type + ', ' + filename)
+
+    updateHbox('exited for')
+
+    for f in files:
+        file_post = {'attachments': f}
+        post(req_string, files=file_post, data=vals)
+
+    updateHbox('sent it!')
 
 def getTextText():
     tbox.addstr(1, 1, ' '*(t_width - 2))
@@ -671,11 +725,15 @@ def showVar(cmd):
     else:
         updateHbox('current value: ' + str(settings[var]))
 
-def openAttachment(num):
+def openAttachment(att_num):
     global displayed_attachments
-    if len(displayed_attachments) <= int(num): return
-    http_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/attachments?path=' + str(displayed_attachments[int(num)]).replace(' ', '%20')
-    os.system('open ' + http_string) if 'darwin' in sys.platform else os.system('xdg-open ' + http_string + ' &!')
+    if len(displayed_attachments) <= int(att_num):
+        return
+    http_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/attachments?path=' + str(displayed_attachments[int(att_num)]).replace(' ', '%20')
+    if sys.platform == 'linux':
+        check_call(['xdg-open', http_string], stdout=DEVNULL, stderr=STDOUT)
+    else:
+        check_call(['open', http_string], stdout=DEVNULL, stderr=STDOUT)
 
 def pingServer():
     global chats
@@ -709,8 +767,8 @@ def mainTask():
             sendTextCmd(cmd)
         elif cmd[:2] in (':c', ':C') or cmd[:4] == 'chat':
             selectChat(cmd)
-        elif cmd in (':f', ':F', 'flip'):
-            switchSelected()
+        elif cmd[:2] in (':f', ':F') or cmd[:4] == 'file':
+            sendFileCmd(cmd)
         elif cmd in (':r', ':R', 'reload'):
             reloadChats()
         elif cmd in (':h', ':H', 'help'):
@@ -720,6 +778,7 @@ def mainTask():
         elif cmd[:2] in (':d', ':D') or cmd[:7] == 'display':
             showVar(cmd)
         elif cmd[:2] in (':a', ':A'):
+            if settings['debug']: updateHbox('going to get attachment')
             openAttachment(cmd[3:])
         elif cmd in (':q', ':Q', 'exit', 'quit'):
             break
@@ -756,7 +815,7 @@ except:
 screen = curses.initscr()
 
 curses.noecho()
-curses.cbreak()
+# curses.cbreak()
 curses.start_color()
 curses.use_default_colors()
 
@@ -836,6 +895,6 @@ screen.refresh()
 main()
 
 curses.echo()
-curses.nocbreak()
+# curses.nocbreak()
 
 curses.endwin()
