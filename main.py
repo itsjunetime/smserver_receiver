@@ -4,6 +4,7 @@ import sys
 import re
 import magic
 import pdb
+import mimetypes
 from requests import get, post
 from textwrap import wrap
 from time import sleep
@@ -35,7 +36,7 @@ settings = {
     'messages_title': '| messages |',
     'input_title': '| input here :) |',
     'help_title': '| help |',
-    'colorscheme': 'default',
+    'colorscheme': 'outrun',
     'help_inset': 5,
     'ping_interval': 10,
     'poll_exit': 0.5,
@@ -477,7 +478,7 @@ def sendTextCmd(cmd):
 
 def sendFileCmd(cmd):
     global current_chat_id
-    updateHbox('entered file cmd')
+    if settings['debug']: updateHbox('entered file cmd')
 
     if current_chat_id == '':
         updateHbox('you have not selected a conversation. please do so before attempting to send texts')
@@ -488,18 +489,25 @@ def sendFileCmd(cmd):
     strings = [f for f in re.split('\'|"', cmd[3:]) if len(f.strip()) != 0]
     files = []
 
-    updateHbox('set initiail vars')
+    if settings['debug']: updateHbox('set initiail vars')
 
     for f in strings:
         if not os.path.isfile(f):
             updateHbox('one of your files did not exist, please try again')
             return
-        mime_type = magic.Magic(mime=True).from_file(f)
+        if settings['debug']: updateHbox('setting mime type for file ')
+        mime_type = ''
+        try:
+            mime_type = magic.from_file(f, mime=True)
+        except:
+            mime_type = mimetypes.MimeTypes().guess_type(f)[0]
+        if settings['debug']: updateHbox('got mime type')
         filename = f.split('/')[-1]
-        files.append((filename, open(f, 'rb'), mime_type))
-        updateHbox('appending ' + f + ', ' + mime_type + ', ' + filename)
+        if settings['debug']: updateHbox('split filename')
+        files.append((str(filename), open(f, 'rb'), str(mime_type)))
+        if settings['debug']: updateHbox('appended to files')
 
-    updateHbox('exited for')
+    if settings['debug']: updateHbox('exited for')
 
     for f in files:
         file_post = {'attachments': f}
@@ -761,6 +769,9 @@ def mainTask():
             loadMessages(current_chat_id)
 
         cmd = getTboxText()
+
+        if settings['debug']: updateHbox('command was sent')
+
         if len(cmd) == 0:
             updateHbox('command cancelled.')
         elif cmd[:2] in (':s', ':S') or cmd[:4] == 'send':
@@ -768,6 +779,7 @@ def mainTask():
         elif cmd[:2] in (':c', ':C') or cmd[:4] == 'chat':
             selectChat(cmd)
         elif cmd[:2] in (':f', ':F') or cmd[:4] == 'file':
+            if settings['debug']: updateHbox('entered file section')
             sendFileCmd(cmd)
         elif cmd in (':r', ':R', 'reload'):
             reloadChats()
