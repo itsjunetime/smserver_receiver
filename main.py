@@ -30,7 +30,7 @@ settings = {
     'messages_title': '| messages |',
     'input_title': '| input here :) |',
     'help_title': '| help |',
-    'colorscheme': 'outrun',
+    'colorscheme': 'default',
     'help_inset': 5,
     'ping_interval': 60,
     'poll_exit': 0.5,
