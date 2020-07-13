@@ -4,9 +4,9 @@ Unnamed as of yet. Maybe I'll just keep it like this, idk. If you have a good na
 
 ### Requires:
  - python3
- - curses
- - textwrap
- - requests
+ - curses -- `pip3 install curses`
+ - requests -- `pip3 install requests`
+ - magic -- `pip3 install python-magic`
  
 The variables in lines 17 through 41 are the ones that would need to be changed for each inidividual's needs. The only one that you should need to set is 'ip', and the rest should be able to be left as they are preset, and allow everything to work perfectly. Look at the comment above each variable to see what it does, and whether or not you should bother changing it. 
 
@@ -15,25 +15,26 @@ To use this, you have to host a server with either my Mac or iPhone hosting app;
 ## To run
 
 1. First, get a copy of either the [Mac Version](https://github.com/iandwelker/mac_smserver) or [iOS Version](https://github.com/iandwelker/smserver) and start that running. 
-2. Set your host device's private ip address in main.py 
-3. Navigate to the folder where main.py resides, and run 'python3 ./main.py', 
+2. Set your host device's private ip address in the 'ip' variable of the settings dictionary in main.py 
+3. Navigate to the folder where main.py resides, and run `python3 ./main.py`, 
 
-If you have issues with that, check to make sure that you've installed all of the above listed dependencies (just install them with pip, e.g. 'pip install curses'). If you're still having issues, continue to 'debugging' down below.
+If you have issues with that, check to make sure that you've installed all of the above listed dependencies (just install them with pip3, e.g. `pip3 install curses`). If you're still having issues, continue to 'debugging' down below.
 
 ### Current features:
  - Sending texts
+ - Send attachments
  - Viewing available conversations
  - View messages from any conversation
  - Easy viewing of image attachments outside of terminal
  - Nearly instantaneous dynamic loading of messages
  - Notifications when a new text is received
  - Extensive customization to run well on any system
+ - Easy colorscheme customization
 
 ### Planned future features:
- - Send attachments
- - Easy colorscheme customization
- - Date and text decoration closer to stock apple
  - Displaying images with jp2a
+ - Starting new conversations
+ - Searching through existing conversations
 
 ## Debugging
 - To debug, set 'debug' to True on line 38 of main.py. 
@@ -43,7 +44,6 @@ If you have issues with that, check to make sure that you've installed all of th
 
 ### Acknowledged Issues
 - Messages with an attachment and no text have an extra blank line underneath them
-- The app will freeze when scrolled to lowest point in chats box
 
 ## Settings variables:
 - `ip`: This contains the private IP of your host device, as a string. Should start with '192.168' or '10.10'. 
