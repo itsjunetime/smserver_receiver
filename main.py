@@ -1,10 +1,14 @@
 import curses
-from requests import get
+import os
+import sys
+import re
+import magic
+import pdb
+from requests import get, post
 from textwrap import wrap
 from time import sleep
 from multiprocessing.pool import ThreadPool
-import os
-import sys
+from subprocess import DEVNULL, STDOUT, check_call
 from datetime import datetime
 
 # TODO:
@@ -18,6 +22,7 @@ settings = {
     'port': '8741',
     'pass': 'toor',
     'req': 'requests',
+    'post': 'uploads',
     'chats_scroll_factor': 2,
     'messages_scroll_factor': 5,
     'current_chat_indicator': '>',
@@ -32,11 +37,12 @@ settings = {
     'help_title': '| help |',
     'colorscheme': 'default',
     'help_inset': 5,
-    'ping_interval': 60,
+    'ping_interval': 10,
     'poll_exit': 0.5,
     'default_num_messages': 100,
     'default_num_chats': 30,
-    'debug': False,
+    'debug': True,
+    'max_past_commands': 10,
     'has_authenticated': False
 }
 
@@ -47,14 +53,16 @@ help_message = ['COMMANDS:',
 'scrolls down in the selected window',
 'k, K - ',
 'scrolls up in the selected window',
-':f, h, l - ',
+'h, l - ',
 'switches selected window between messages and conversations',
 ':q, exit, quit - ',
 'exits the window, cleaning up. recommended over ctrl+c.',
-':s, :S, send - ',
-'starts the process for sending a text with the currently selected conversation. after you hit enter on \':s\', You will then be able to input the content of your text, and hit <enter> once you are ready to send it, or hit <esc> to cancel. You can also enter enter your text with a space between it and the \':s\', e.g.: \':s hello!\'',
 ':c, :C, chat - ',
 'this should be immediately followed by a number, specifically the index of the conversation whose texts you want to view. the indices are displayed to the left of each conversation in the leftmost box. eg \':c 25\'',
+':s, :S, send - ',
+'starts the process for sending a text with the currently selected conversation. after you hit enter on \':s\', You will then be able to input the content of your text, and hit <enter> once you are ready to send it, or hit <esc> to cancel. You can also enter enter your text with a space between it and the \':s\', e.g.: \':s hello!\'',
+':f, :F, file - ',
+'sends attachments to the specified chat. Specify the files specifically as full path strings, surrounded by single or double quotes, e.g. "/home/user/Documents/file.txt" or \'/home/user/Pictures/file.jpeg\'. You can select multiple files, and they will all be send in the order that they were specified.',
 ':a, :A - ',
 'this, along with the number of the attachment, will open the selected attachment in your browser. For example, if you see \'Attachment 5: image/jpeg\', type \':a 5\' and the attachment will be opened to be viewed in your browser',
 ':b, :B, bind - ',
@@ -70,7 +78,8 @@ color_schemes = {
     # [3]: Unselected box, [4]: Chat indicator color, [5]: Unread indicator color,
     # [6]: Text color, [7]: Hints box color
     "default": [6, 39, 248, -1, 219, 39, 231, 9],
-    "outrun": [211, 165, 238, 6, 228, 205, 189, 198],
+    "outrun": [211, 165, 238, 6, 228, 205, 231, 209],
+    "coral": [202, 117, 251, 208, 207, 73, 7, 79]
 }
 
 print('Loading ...')
@@ -89,8 +98,9 @@ class Message:
     timestamp = 0
     attachments = []
     attachment_types = []
+    sender = ''
 
-    def __init__(self, c = [], ts = 0, fm = True, att = '', att_t = ''):
+    def __init__(self, c = [], ts = 0, fm = True, att = '', att_t = '', s = ''):
         self.from_me = fm
         self.content = c
         self.timestamp = int(int(ts) / 1000000000 + 978307200) # This will auto-convert it to unix timestamp
@@ -98,24 +108,27 @@ class Message:
         self.attachments = pa[:len(pa) - 1]
         pa_t = att_t.split(':')
         self.attachment_types = pa_t[:len(pa_t) - 1]
+        self.sender = s
 
 class Chat:
     """A conversation"""
     chat_id = ''
     display_name = ''
     has_unread = False
-    recipients = {} # Would normally just be the chatid of the one recipient.
+    # recipients = {} # Would normally just be the chatid of the one recipient.
 
-    def __init__(self, ci = '', rc = {}, dn = '', un = False):
+    def __init__(self, ci = '', dn = '', un = False):
         self.chat_id = ci
         self.display_name = dn
-        self.recipients[ci] = dn
-        self.recipients.update(rc)
+        # self.recipients[ci] = dn
+        # self.recipients.update(rc)
         self.has_unread = un
 
 chats = []
 messages = []
 displayed_attachments = []
+past_commands = []
+
 current_chat_id = ''
 current_chat_index = 0
 num_requested_chats = 0
@@ -166,10 +179,10 @@ def getChats(num = settings['default_num_chats'], offset = 0):
     return_val = []
     for i in chat_items:
         # I need to start returning recipients to this request so I can initialize chats with them
-        new_chat = Chat(i['chat_identifier'], {}, i['display_name'], False if i['has_unread'] == "false" else True)
+        new_chat = Chat(i['chat_identifier'], i['display_name'], False if i['has_unread'] == "false" else True)
         return_val.append(new_chat)
-        print("new chat:") if settings['debug'] else 0
-        print(new_chat) if settings['debug'] else 0
+        if settings['debug']: print("new chat:")
+        if settings['debug']: print(new_chat)
         
     return return_val
 
@@ -208,7 +221,7 @@ def loadInChats():
             cbox.addstr(vert_pad, chat_offset - 2, '•',curses.color_pair(5)) if c.has_unread else 0
             cbox.addstr(vert_pad, chat_offset, d_name, curses.color_pair(7))
         except curses.error:
-            updateHbox('failed to add chat ' + str(n) + ' to box') if settings['debug'] else 0
+            if settings['debug']: updateHbox('failed to add chat ' + str(n) + ' to box')
 
     updateHbox('chats loaded in')
     refreshCBox()
@@ -220,7 +233,6 @@ def reloadChats():
     try:
         chats = getChats()
     except:
-        updateHbox('entered except') if settings['debug'] else 0
         updateHbox('failed to connect to server. please check your host.')
         curses.echo()
         curses.nocbreak()
@@ -248,6 +260,7 @@ def selectChat(cmd):
         updateHbox('that index is out of range. please load more chats or try again')
         return
 
+    if settings['debug']: updateHbox('Selected chat with ' + cmd)
     cbox.addstr((current_chat_index * 2) + settings['chat_vertical_offset'], chat_offset - 2, ' ')
     cbox.addstr((num * 2) + settings['chat_vertical_offset'], chat_offset - 2, settings['current_chat_indicator'], curses.color_pair(5))
     refreshCBox(cbox_offset)
@@ -260,23 +273,24 @@ def getMessages(id, num = settings['default_num_messages'], offset = 0):
     id = id.replace('+', '%2B')
 
     req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?person=' + id + '&num=' + str(num) + '&offset=' + str(offset)
-    updateHbox('req: ' + req_string) if settings['debug'] else 0
+    if settings['debug']: updateHbox('req: ' + req_string)
     new_messages = get(req_string)
-    updateHbox('got new_messages') if settings['debug'] else 0
+    if settings['debug']: updateHbox('got new_messages')
     new_json = new_messages.json()
-    updateHbox('parsed json of new messages') if settings['debug'] else 0
+    if settings['debug']: updateHbox('parsed json of new messages')
     message_items = new_json['texts']
     return_val = []
     for n, i in enumerate(message_items):
         try:
             att = i['attachment_file'] if 'attachment_file' in i.keys() else ''
             att_t = i['attachment_type'] if 'attachment_type' in i.keys() else ''
-            new_m = Message(wrap(i['text'], single_width), i['date'], True if i['is_from_me'] == '1' else False, att, att_t)
+            s = i['sender'] if i['sender'] != 'nil' else ''
+            new_m = Message(wrap(i['text'], single_width), i['date'], True if i['is_from_me'] == '1' else False, att, att_t, s)
             return_val.append(new_m)
         except:
             updateHbox('failed to get message from index %d' % n)
             pass
-        updateHbox('unpacking item ' + str(n + 1) + '/' + str(len(message_items))) if settings['debug'] else 0
+        if settings['debug']: updateHbox('unpacking item ' + str(n + 1) + '/' + str(len(message_items)) + ', val[:3] is ' + i['text'][:3])
 
     return_val.reverse()
     return return_val
@@ -295,15 +309,17 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
     else:
         messages = getMessages(id, num, len(messages)) + messages
 
+    # I think messages are reversed at this point...? Actually no?
     total_messages_height = 0 # I think? It used to be 0 but setting it to offset may make it be cool
     for n, m in enumerate(messages):
         total_messages_height += len(m.content)
-        total_messages_height += len(m.attachments) if len(m.attachments) > 0 else 0
-        total_messages_height += 2
+        total_messages_height += len(m.attachments) if len(m.content) > 0 else len(m.attachments) + 1
+        total_messages_height += 2 if n == len(messages) - 1 or m.sender != messages[n + 1].sender else 1
         total_messages_height += 2 if n == 0 or m.timestamp - messages[n - 1].timestamp >= 3600 else 0
+        total_messages_height += 1 if m.sender != '' and n != 0 and m.sender != messages[n - 1].sender else 0
 
     top_offset = 1
-    updateHbox('set top offset') if settings['debug'] else 0
+    if settings['debug']: updateHbox('set top offset')
 
     mbox.clear()
     mbox_wrapper.clear()
@@ -313,11 +329,11 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
     mbox_wrapper.attron(curses.color_pair(4))
     mbox_wrapper.refresh()
 
-    updateHbox('set mbox_wrapper attributes, tmh is ' + str(total_messages_height)) if settings['debug'] else 0
+    if settings['debug']: updateHbox('set mbox_wrapper attributes, tmh is ' + str(total_messages_height))
     mbox.resize(total_messages_height, messages_width - 2)
 
     for n, m in enumerate(messages):
-        updateHbox('entered message enumeration on item ' + str(n + 1)) if settings['debug'] else 0
+        if settings['debug']: updateHbox('entered message enumeration on item ' + str(n + 1))
         longest_att = 0
         for i in m.attachment_types:
             if len('Attachment 00: ' + i) > longest_att:
@@ -325,39 +341,44 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
 
         text_width = max(len(i) for i in m.content) if len(m.content) > 0 else 0
         text_width = max(text_width, longest_att)
-        updateHbox('passed text_width for item ' + str(n + 1)) if settings['debug'] else 0
+        if settings['debug']: updateHbox('passed text_width for item ' + str(n + 1))
         left_padding = 0
         underline = settings['their_chat_end'] + settings['chat_underline']*(text_width - len(settings['their_chat_end']) + 1)
-        updateHbox('set first section of message ' + str(n + 1)) if settings['debug'] else 0
+        if settings['debug']: updateHbox('set first section of message ' + str(n + 1) + ', to = ' + str(top_offset) + ', h = ' + str(total_messages_height))
 
         if n == 0 or m.timestamp - messages[n - 1].timestamp >= 3600:
-            updateHbox('checking timestamps on item ' + str(n + 1)) if settings['debug'] else 0
+            if settings['debug']: updateHbox('checking timestamps on item ' + str(n + 1))
             time_string = getDate(m.timestamp)
-            updateHbox('got string on item ' + str(n + 1) + '. m=' + str(m.timestamp) + ' & n+1=' + str(messages[n-1].timestamp)) if settings['debug'] else 0
+            if settings['debug']: updateHbox('got string on item ' + str(n + 1) + '. m=' + str(m.timestamp) + ' & n+1=' + str(messages[n-1].timestamp))
             mbox.addstr(top_offset, int((messages_width - 2 - len(time_string)) / 2), time_string, curses.color_pair(7))
-            updateHbox('added time string on item ' + str(n)) if settings['debug'] else 0
+            if settings['debug']: updateHbox('added time string on item ' + str(n))
             top_offset += 2
 
         if m.from_me == True:
-            updateHbox('entered if_from_me for item ' + str(n + 1)) if settings['debug'] else 0
+            if settings['debug']: updateHbox('entered if_from_me for item ' + str(n + 1))
             left_padding = messages_width - 3 - text_width # I feel like it shouldn't be 3 but ok
             underline = settings['chat_underline']*(text_width - len(settings['my_chat_end'])) + settings['my_chat_end']
 
+        if m.sender != '' and n != 0 and m.sender != messages[n - 1].sender:
+            mbox.addstr(top_offset, left_padding, m.sender)
+            top_offset += 1
+
         for i in range(len(m.attachments)):
             mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, 'Attachment ' + str(len(displayed_attachments)) + ': ' + m.attachment_types[i], curses.color_pair(7))
-            displayed_attachments.append(m.attachments[i])
+            displayed_attachments.append(str(m.attachments[i]))
             top_offset += 1
-            # So I feel like I should increment top_offset here but I guess not?
 
         for j, l in enumerate(m.content):
             mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, l, curses.color_pair(7))
-            top_offset += 1 if l != ' ' else -1
+            top_offset += 1
 
-        updateHbox('settings underline on item %d' % n) if settings['debug'] else 0
+        if n == len(messages) - 1 or m.sender == messages[n + 1].sender: underline = settings['chat_underline']*len(underline)
+
+        if settings['debug']: updateHbox('settings underline on item %d' % n)
         mbox.addstr(top_offset, left_padding, underline, curses.color_pair(2) if m.from_me else curses.color_pair(3)) if text_width > 0 else 0
-        top_offset += 2
+        top_offset += 2 if n != len(messages) - 1 and m.sender != messages[n + 1].sender else 1
 
-        updateHbox('added text ' + str(n) + '/' + str(num)) if settings['debug'] else 0
+        if settings['debug']: updateHbox('added text ' + str(n) + '/' + str(num))
 
     total_messages_height = top_offset + 1
     mbox_offset = offset
@@ -376,20 +397,34 @@ def refreshMBox(down = mbox_offset):
 
 def getTboxText():
     global t_width
+    global past_commands
     tbox.addstr(1, 1, ' '*(t_width - 2))
     tbox.refresh()
     whole_string = ''
     right_offset = 0
+    past_command_offset = -1
     
     # This whole section is a nightmare. But it seems to work...?
     while True:
+        # if settings['debug']: updateHbox('entered True; pco is ' + str(past_command_offset) + ', len is ' + str(len(past_commands)))
         ch = tbox.getch(1, min(1 + len(whole_string) - right_offset, t_width - 2) if len(whole_string) < t_width - 2 else t_width - 2 - right_offset)
-        if (chr(ch) in ('j', 'J', '^[B') and len(whole_string) == 0) or ch in (curses.KEY_DOWN,):
+        # if settings['debug']: updateHbox('ch is ' + chr(ch))
+        if (chr(ch) in ('j', 'J', '^[B') and len(whole_string) == 0):
             scrollDown()
-        elif (chr(ch) in ('k', 'K', '^[A') and len(whole_string) == 0) or ch in (curses.KEY_UP,):
+        elif (chr(ch) in ('k', 'K', '^[A') and len(whole_string) == 0):
             scrollUp()
-        elif (chr(ch) in ('l', 'L', 'h', 'H') and len(whole_string) == 0): # or (not settings['buggy_mode'] and ch in (curses.KEY_LEFT, curses.KEY_RIGHT)):
+        elif (chr(ch) in ('l', 'L', 'h', 'H') and len(whole_string) == 0): 
             switchSelected()
+        elif ch in (curses.KEY_UP,) and len(past_commands) > 0:
+            past_command_offset += 1 if past_command_offset < len(past_commands) - 1 else 0
+            whole_string = past_commands[min(past_command_offset, settings['max_past_commands'] - 1)][:t_width - 2]
+            if settings['debug']: updateHbox('up; set whole_string, pco is ' + str(past_command_offset))
+            tbox.addstr(1, 1, whole_string + ' '*(t_width - 2 - len(whole_string)))
+        elif ch in (curses.KEY_DOWN,):
+            past_command_offset -= 1 if past_command_offset >= 0 else 0
+            whole_string = past_commands[past_command_offset][:t_width - 2] if past_command_offset != -1 else ''
+            if settings['debug']: updateHbox('down; set whole_string, pco is ' + str(past_command_offset))
+            tbox.addstr(1, 1, whole_string + ' '*(t_width - 2 - len(whole_string)))
         elif ch in (10, curses.KEY_ENTER):
             return whole_string
         elif ch in (127, curses.KEY_BACKSPACE):
@@ -397,13 +432,13 @@ def getTboxText():
                 whole_string = whole_string[:len(whole_string) - 1]
             else:
                 whole_string = whole_string[:len(whole_string) - right_offset - 1] + whole_string[len(whole_string) - right_offset:]
-                
             tbox.addstr(1, 1, str(whole_string + ' '*max((t_width - len(whole_string) - 3), 0))[max((len(whole_string) - t_width + 3), 0):])
-
         elif ch in (curses.KEY_LEFT,):
             right_offset += 1 if right_offset != len(whole_string) else 0
         elif ch in (curses.KEY_RIGHT,):
             right_offset -= 1 if right_offset > 0 else 0
+        elif ch in (27, curses.KEY_CANCEL,):
+            return ''
         elif len(chr(ch)) == 1: 
             if right_offset != 0:
                 whole_string = whole_string[:len(whole_string) - right_offset] + chr(ch) + whole_string[len(whole_string) - right_offset:]
@@ -415,7 +450,7 @@ def getTboxText():
             else:
                 tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 3:])
                 
-
+    if settings['debug']: updateHbox('returning whole_string from tbox')
     return whole_string
 
 def sendTextCmd(cmd):
@@ -431,13 +466,46 @@ def sendTextCmd(cmd):
     if new_text == '':
         updateHbox('cancelled; text was not sent.')
         return
-    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?send=' + new_text + '&to=' + current_chat_id.replace("+", "%2B")
-    updateHbox('set req_string') if settings['debug'] else 0
-    get(req_string)
+        
+    vals = {'text': 'text:' + new_text, 'chat': 'chat:' + current_chat_id}
+    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
+    if settings['debug']: updateHbox('set req_string')
+    post(req_string, files={"attachments": (None, '0')}, data=vals) # You have to put some value for files or the server will crash; idk why bro
     updateHbox('text sent!')
     if current_chat_index != 0:
         reloadChats()
-    loadMessages(current_chat_id)
+
+def sendFileCmd(cmd):
+    global current_chat_id
+    updateHbox('entered file cmd')
+
+    if current_chat_id == '':
+        updateHbox('you have not selected a conversation. please do so before attempting to send texts')
+        return
+
+    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
+    vals = {'chat': 'chat:' + current_chat_id}
+    strings = [f for f in re.split('\'|"', cmd[3:]) if len(f.strip()) != 0]
+    files = []
+
+    updateHbox('set initiail vars')
+
+    for f in strings:
+        if not os.path.isfile(f):
+            updateHbox('one of your files did not exist, please try again')
+            return
+        mime_type = magic.Magic(mime=True).from_file(f)
+        filename = f.split('/')[-1]
+        files.append((filename, open(f, 'rb'), mime_type))
+        updateHbox('appending ' + f + ', ' + mime_type + ', ' + filename)
+
+    updateHbox('exited for')
+
+    for f in files:
+        file_post = {'attachments': f}
+        post(req_string, files=file_post, data=vals)
+
+    updateHbox('sent it!')
 
 def getTextText():
     tbox.addstr(1, 1, ' '*(t_width - 2))
@@ -484,17 +552,17 @@ def switchSelected():
     global cbox_offset
     selected_box = 'c' if selected_box == 'm' else 'm'
 
-    mbox_wrapper.attron(curses.color_pair(1)) if selected_box == 'm' else 0
+    mbox_wrapper.attron(curses.color_pair(1)) if selected_box == 'm' else mbox_wrapper.attron(curses.color_pair(4))
     mbox_wrapper.box()
     mbox_wrapper.addstr(0, settings['title_offset'], settings['messages_title'])
-    mbox_wrapper.attron(curses.color_pair(4)) if selected_box == 'm' else 0
+    mbox_wrapper.attron(curses.color_pair(4)) if selected_box == 'm' else mbox_wrapper.attron(curses.color_pair(1))
     mbox_wrapper.refresh()
     refreshMBox(mbox_offset)
 
-    cbox_wrapper.attron(curses.color_pair(1)) if selected_box == 'c' else 0
+    cbox_wrapper.attron(curses.color_pair(1)) if selected_box == 'c' else cbox_wrapper.attron(curses.color_pair(4))
     cbox_wrapper.box()
     cbox_wrapper.addstr(0, settings['title_offset'], settings['chats_title'])
-    cbox_wrapper.attron(curses.color_pair(4)) if selected_box == 'c' else 0
+    cbox_wrapper.attron(curses.color_pair(4)) if selected_box == 'c' else cbox_wrapper.attron(curses.color_pair(1))
     cbox_wrapper.refresh()
     refreshCBox(cbox_offset)
 
@@ -506,7 +574,7 @@ def scrollUp():
     global messages
 
     if selected_box == 'm':
-        updateHbox('scrolling m box, offset is ' + str(mbox_offset) + ', total height is ' + str(total_messages_height)) if settings['debug'] else 0
+        if settings['debug']: updateHbox('scrolling m box, offset is ' + str(mbox_offset) + ', total height is ' + str(total_messages_height))
         if mbox_offset < total_messages_height - messages_height:
             mbox_offset += settings['messages_scroll_factor']
         elif len(messages) >= settings['default_num_messages']:
@@ -522,7 +590,7 @@ def scrollDown():
     global cbox_offset
     global chats
     if selected_box == 'm':
-        updateHbox('scrolling m down, offset is ' + str(mbox_offset)) if settings['debug'] else 0
+        if settings['debug']: updateHbox('scrolling m down, offset is ' + str(mbox_offset))
         mbox_offset -= settings['messages_scroll_factor'] if mbox_offset > 0 else 0
         refreshMBox(mbox_offset)
     else:
@@ -530,7 +598,7 @@ def scrollDown():
             updateHbox('Updating chats...')
             loadInChats()
         else:
-            updateHbox('just scrolling') if settings['debug'] else 0
+            if settings['debug']: updateHbox('just scrolling')
             cbox_offset += settings['chats_scroll_factor'] if cbox_offset < chats_height - cbox_wrapper_height - 2 else 0
         refreshCBox(cbox_offset)
 
@@ -549,7 +617,7 @@ def displayHelp():
     help_messages_wrapped = [[]]
     
     for n, l in enumerate(help_message):
-        help_messages_wrapped.append(wrap(l, help_width - 2) if n % 2 == 0 and not n == 0 else wrap(l, help_width - 2 - settings['help_inset']))
+        help_messages_wrapped.append(wrap(l, help_width - 2) if n % 2 == 1 and not n == 0 else wrap(l, help_width - 2 - settings['help_inset']))
 
     text_rows = sum(len(m) for m in help_messages_wrapped)
 
@@ -566,7 +634,7 @@ def displayHelp():
 
     for n, m in enumerate(help_messages_wrapped):
         for r in m:
-            help_box.addstr(top_offset, 0, r if n % 2 == 0 and not n == 0 else ' '*settings['help_inset'] + r)
+            help_box.addstr(top_offset, 0, r if n % 2 == 0 or n == 1 else ' '*settings['help_inset'] + r) # Why is the first line n == 1? Why are they negative when n%2==0? Idk
             top_offset += 1
 
     help_box.refresh(help_offset, 0, help_y + 1, help_x + 1, help_y + help_height - 2, help_x + help_width - 2)
@@ -583,7 +651,7 @@ def displayHelp():
             help_box.refresh(help_offset, 0, help_y + 1, help_x + 1, help_y + help_height - 2, help_x + help_width - 2)
         elif chr(c) in ('q', 'Q'):
             break
-        updateHbox('scrolling, rows is ' + str(text_rows) + ', height is ' + str(help_height) + ', offset is ' + str(help_offset)) if settings['debug'] else 0
+        if settings['debug']: updateHbox('scrolling, rows is ' + str(text_rows) + ', height is ' + str(help_height) + ', offset is ' + str(help_offset))
     
     hbox_wrapper.clear()
     hbox_wrapper.refresh()
@@ -622,16 +690,16 @@ def setVar(cmd):
         return
 
     if type(settings[var]) == int:
-        updateHbox('type is int') if settings['debug'] else 0
+        if settings['debug']: updateHbox('type is int')
         settings[var] = int(val)
     elif type(settings[var]) == float:
-        updateHbox('type is float') if settings['debug'] else 0
+        if settings['debug']: updateHbox('type is float') 
         settings[var] = float(val)
     elif type(settings[var]) == bool:
-        updateHbox('type is bool') if settings['debug'] else 0
+        if settings['debug']: updateHbox('type is bool')
         settings[var] = True if val == 'True' or val == 'true' else False
     else:
-        updateHbox('type is str') if settings['debug'] else 0
+        if settings['debug']: updateHbox('type is str')
         settings[var] = val
     
     if type(oldval) == str:
@@ -642,6 +710,9 @@ def setVar(cmd):
     
     if sys.platform == 'linux':
         sed_string = 'sed -i "s/\'' + var + '\': ' + str(oldval) + ',/\'' + var + '\': ' + str(val) + ',/" ' + os.path.basename(__file__)
+        os.system(sed_string)
+    else:
+        sed_string = 'sed -i \'\' -e "s+\'' + var + '\': ' + str(oldval) + '+\'' + var + '\': ' + str(val) + '+" ' + os.path.basename(__file__)
         os.system(sed_string)
 
     updateHbox('updated ' + var + ' to ' + val)
@@ -654,11 +725,15 @@ def showVar(cmd):
     else:
         updateHbox('current value: ' + str(settings[var]))
 
-def openAttachment(num):
+def openAttachment(att_num):
     global displayed_attachments
-    if len(displayed_attachments) <= int(num): return
-    http_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/attachments?path=' + str(displayed_attachments[int(num)]).replace(' ', '%20')
-    os.system('open ' + http_string) if 'darwin' in sys.platform else os.system('xdg-open ' + http_string + ' &!')
+    if len(displayed_attachments) <= int(att_num):
+        return
+    http_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/attachments?path=' + str(displayed_attachments[int(att_num)]).replace(' ', '%20')
+    if sys.platform == 'linux':
+        check_call(['xdg-open', http_string], stdout=DEVNULL, stderr=STDOUT)
+    else:
+        check_call(['open', http_string], stdout=DEVNULL, stderr=STDOUT)
 
 def pingServer():
     global chats
@@ -679,15 +754,21 @@ def pingServer():
             os.system('notify-send "you got new texts!"') if os.uname()[0] != 'Darwin' else 0
 
 def mainTask():
+    global past_commands
     global end_all
     while not end_all:
+        if len(past_commands) > 0 and past_commands[0][:2] in (':s', ':S'):
+            loadMessages(current_chat_id)
+
         cmd = getTboxText()
-        if cmd[:2] in (':s', ':S') or cmd[:4] == 'send':
+        if len(cmd) == 0:
+            updateHbox('command cancelled.')
+        elif cmd[:2] in (':s', ':S') or cmd[:4] == 'send':
             sendTextCmd(cmd)
         elif cmd[:2] in (':c', ':C') or cmd[:4] == 'chat':
             selectChat(cmd)
-        elif cmd in (':f', ':F', 'flip'):
-            switchSelected()
+        elif cmd[:2] in (':f', ':F') or cmd[:4] == 'file':
+            sendFileCmd(cmd)
         elif cmd in (':r', ':R', 'reload'):
             reloadChats()
         elif cmd in (':h', ':H', 'help'):
@@ -697,12 +778,20 @@ def mainTask():
         elif cmd[:2] in (':d', ':D') or cmd[:7] == 'display':
             showVar(cmd)
         elif cmd[:2] in (':a', ':A'):
+            if settings['debug']: updateHbox('going to get attachment')
             openAttachment(cmd[3:])
         elif cmd in (':q', ':Q', 'exit', 'quit'):
             break
         else:
             updateHbox('sorry, this command isn\'t supported .')
-    
+
+        if len(past_commands) > 0 and len(cmd) != 0:
+            past_commands = ([cmd] + past_commands[:min(len(past_commands), settings['max_past_commands'] - 1)])
+        else:
+            past_commands = [cmd]
+
+        if settings['debug']: updateHbox('added ' + cmd + ' to p_c')
+
     updateHbox('exiting...')
     end_all = True
         
@@ -726,7 +815,7 @@ except:
 screen = curses.initscr()
 
 curses.noecho()
-curses.cbreak()
+# curses.cbreak()
 curses.start_color()
 curses.use_default_colors()
 
@@ -750,8 +839,8 @@ t_y = rows - t_height - h_height
 min_chat_width = 24
 chats_width = int(cols * 0.3) if cols * 0.3 > min_chat_width else min_chat_width
 chats_height = (len(chats) + settings['chat_vertical_offset']) * chat_padding
-print('chats_height: %d' % chats_height) if settings['debug'] else 0
-sleep(1) if settings['debug'] else 0
+if settings['debug']: print('chats_height: %d' % chats_height)
+if settings['debug']: sleep(1)
 chats_x = t_x
 chats_y = 0
 cbox_wrapper_height = t_y
@@ -806,6 +895,6 @@ screen.refresh()
 main()
 
 curses.echo()
-curses.nocbreak()
+# curses.nocbreak()
 
 curses.endwin()
