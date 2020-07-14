@@ -42,7 +42,7 @@ settings = {
     'poll_exit': 0.5,
     'default_num_messages': 100,
     'default_num_chats': 30,
-    'debug': True,
+    'debug': False,
     'max_past_commands': 10,
     'has_authenticated': False
 }
@@ -373,9 +373,9 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
             mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, l, curses.color_pair(7))
             top_offset += 1
 
-        if n == len(messages) - 1 or m.sender == messages[n + 1].sender: underline = settings['chat_underline']*len(underline)
+        if n == len(messages) - 1 or (m.sender != '' and m.sender == messages[n + 1].sender) or m.from_me == messages[n + 1].from_me: underline = settings['chat_underline']*len(underline)
 
-        if settings['debug']: updateHbox('settings underline on item %d' % n)
+        if settings['debug']: updateHbox('settings underline on item ' + str(n))
         mbox.addstr(top_offset, left_padding, underline, curses.color_pair(2) if m.from_me else curses.color_pair(3)) if text_width > 0 else 0
         top_offset += 2 if n != len(messages) - 1 and m.sender != messages[n + 1].sender else 1
 
@@ -779,7 +779,6 @@ def mainTask():
         elif cmd[:2] in (':c', ':C') or cmd[:4] == 'chat':
             selectChat(cmd)
         elif cmd[:2] in (':f', ':F') or cmd[:4] == 'file':
-            if settings['debug']: updateHbox('entered file section')
             sendFileCmd(cmd)
         elif cmd in (':r', ':R', 'reload'):
             reloadChats()
