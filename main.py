@@ -2,15 +2,18 @@ import curses
 import os
 import sys
 import re
-import magic
-import pdb
 import mimetypes
+import pdb
 from requests import get, post
 from textwrap import wrap
 from time import sleep
 from multiprocessing.pool import ThreadPool
 from subprocess import DEVNULL, STDOUT, check_call
 from datetime import datetime
+try:
+    import magic
+except ImportError:
+    pass
 
 # TODO:
 # [ ] Extensively test text input
@@ -314,8 +317,9 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
     total_messages_height = 0 # I think? It used to be 0 but setting it to offset may make it be cool
     for n, m in enumerate(messages):
         total_messages_height += len(m.content)
-        total_messages_height += len(m.attachments) if len(m.content) > 0 else len(m.attachments) + 1
-        total_messages_height += 2 if n == len(messages) - 1 or m.sender != messages[n + 1].sender else 1
+        # total_messages_height += len(m.attachments) if len(m.content) > 0 else len(m.attachments) + 1
+        total_messages_height += len(m.attachments) + 1
+        total_messages_height += 2 if n == len(messages) - 1 or m.sender != messages[n + 1].sender or m.from_me != messages[n + 1] else 1
         total_messages_height += 2 if n == 0 or m.timestamp - messages[n - 1].timestamp >= 3600 else 0
         total_messages_height += 1 if m.sender != '' and n != 0 and m.sender != messages[n - 1].sender else 0
 
@@ -341,7 +345,7 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
                 longest_att = len('Attachment 00: ' + i)
 
         text_width = max(len(i) for i in m.content) if len(m.content) > 0 else 0
-        text_width = max(text_width, longest_att)
+        text_width = min(max(text_width, longest_att), single_width)
         if settings['debug']: updateHbox('passed text_width for item ' + str(n + 1))
         left_padding = 0
         underline = settings['their_chat_end'] + settings['chat_underline']*(text_width - len(settings['their_chat_end']) + 1)
@@ -357,19 +361,28 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
 
         if m.from_me == True:
             if settings['debug']: updateHbox('entered if_from_me for item ' + str(n + 1))
+            # f n == 83:
+            #     pdb.set_trace()
             left_padding = messages_width - 3 - text_width # I feel like it shouldn't be 3 but ok
+            if settings['debug']: updateHbox('set left padding on item ' + str(n + 1))
             underline = settings['chat_underline']*(text_width - len(settings['my_chat_end'])) + settings['my_chat_end']
+            if settings['debug']: updateHbox('past setting underline on item ' + str(n + 1))
 
         if m.sender != '' and n != 0 and m.sender != messages[n - 1].sender:
+            if settings['debug']: updateHbox('Entered sender section on item ' + str(n + 1))
             mbox.addstr(top_offset, left_padding, m.sender)
             top_offset += 1
 
         for i in range(len(m.attachments)):
-            mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, 'Attachment ' + str(len(displayed_attachments)) + ': ' + m.attachment_types[i], curses.color_pair(7))
+            if settings['debug']: updateHbox('Entered attachments section on item ' + str(n + 1))
+            att_str = 'Attachment ' + str(len(displayed_attachments)) + ': '
+            att_str += m.attachment_types[i][:single_width - len(att_str)]
+            mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, att_str, curses.color_pair(7))
             displayed_attachments.append(str(m.attachments[i]))
             top_offset += 1
 
         for j, l in enumerate(m.content):
+            if settings['debug']: updateHbox('On item ' + str(j + 1) + ' of content on item ' + str(n + 1))
             mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, l, curses.color_pair(7))
             top_offset += 1
 
@@ -471,8 +484,11 @@ def sendTextCmd(cmd):
     vals = {'text': 'text:' + new_text, 'chat': 'chat:' + current_chat_id}
     req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
     if settings['debug']: updateHbox('set req_string')
-    post(req_string, files={"attachments": (None, '0')}, data=vals) # You have to put some value for files or the server will crash; idk why bro
-    updateHbox('text sent!')
+    try:
+        post(req_string, files={"attachments": (None, '0')}, data=vals) # You have to put some value for files or the server will crash; idk why bro
+        updateHbox('text sent!')
+    except: 
+        updateHbox('Failed to send text :(')
     if current_chat_index != 0:
         reloadChats()
 
