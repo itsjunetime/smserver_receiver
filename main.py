@@ -26,7 +26,7 @@ settings = {
     'port': '8741',
     'pass': 'toor',
     'req': 'requests',
-    'post': 'uploads',
+    'post': 'send',
     'chats_scroll_factor': 2,
     'messages_scroll_factor': 5,
     'current_chat_indicator': '>',
