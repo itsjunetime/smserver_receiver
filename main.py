@@ -18,7 +18,6 @@ except ImportError:
 # TODO:
 # [ ] Extensively test text input
 # [ ] Set conversation to read on device when you view it on here
-# [ ] When scrolling up, position in mbox doesn't remain the same after refresh.
 # [ ] Add more nice-looking colorschemes
 
 settings = {
@@ -119,13 +118,10 @@ class Chat:
     chat_id = ''
     display_name = ''
     has_unread = False
-    # recipients = {} # Would normally just be the chatid of the one recipient.
 
     def __init__(self, ci = '', dn = '', un = False):
         self.chat_id = ci
         self.display_name = dn
-        # self.recipients[ci] = dn
-        # self.recipients.update(rc)
         self.has_unread = un
 
 chats = []
@@ -154,7 +150,6 @@ def getDate(ts):
     return datetime.fromtimestamp(int(ts)).strftime('%Y-%m-%d %H:%M')
 
 def getChats(num = settings['default_num_chats'], offset = 0):
-    # To authenticate
     global num_requested_chats
     if not settings['has_authenticated']:
         authenticate()
@@ -182,7 +177,6 @@ def getChats(num = settings['default_num_chats'], offset = 0):
     if settings['debug']: print('chats_len: %d' % len(chat_items))
     return_val = []
     for i in chat_items:
-        # I need to start returning recipients to this request so I can initialize chats with them
         new_chat = Chat(i['chat_identifier'], i['display_name'], False if i['has_unread'] == "false" else True)
         return_val.append(new_chat)
         if settings['debug']: print("new chat:")
@@ -270,7 +264,7 @@ def selectChat(cmd):
     refreshCBox(cbox_offset)
     current_chat_id = chats[num].chat_id
     current_chat_index = num
-    loadMessages(current_chat_id, settings['default_num_messages'], 0) # was single_width for offset, idk why
+    loadMessages(current_chat_id, settings['default_num_messages'], 0)
 
 def getMessages(id, num = settings['default_num_messages'], offset = 0):
     global single_width
@@ -313,11 +307,9 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
     else:
         messages = getMessages(id, num, len(messages)) + messages
 
-    # I think messages are reversed at this point...? Actually no?
-    total_messages_height = 0 # I think? It used to be 0 but setting it to offset may make it be cool
+    total_messages_height = 0
     for n, m in enumerate(messages):
         total_messages_height += len(m.content)
-        # total_messages_height += len(m.attachments) if len(m.content) > 0 else len(m.attachments) + 1
         total_messages_height += len(m.attachments) + 1
         total_messages_height += 2 if n == len(messages) - 1 or m.sender != messages[n + 1].sender or m.from_me != messages[n + 1] else 1
         total_messages_height += 2 if n == 0 or m.timestamp - messages[n - 1].timestamp >= 3600 else 0
@@ -361,8 +353,6 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
 
         if m.from_me == True:
             if settings['debug']: updateHbox('entered if_from_me for item ' + str(n + 1))
-            # f n == 83:
-            #     pdb.set_trace()
             left_padding = messages_width - 3 - text_width # I feel like it shouldn't be 3 but ok
             if settings['debug']: updateHbox('set left padding on item ' + str(n + 1))
             underline = settings['chat_underline']*(text_width - len(settings['my_chat_end'])) + settings['my_chat_end']
@@ -420,9 +410,7 @@ def getTboxText():
     
     # This whole section is a nightmare. But it seems to work...?
     while True:
-        # if settings['debug']: updateHbox('entered True; pco is ' + str(past_command_offset) + ', len is ' + str(len(past_commands)))
         ch = tbox.getch(1, min(1 + len(whole_string) - right_offset, t_width - 2) if len(whole_string) < t_width - 2 else t_width - 2 - right_offset)
-        # if settings['debug']: updateHbox('ch is ' + chr(ch))
         if (chr(ch) in ('j', 'J', '^[B') and len(whole_string) == 0):
             scrollDown()
         elif (chr(ch) in ('k', 'K', '^[A') and len(whole_string) == 0):
@@ -658,7 +646,7 @@ def displayHelp():
 
     for n, m in enumerate(help_messages_wrapped):
         for r in m:
-            help_box.addstr(top_offset, 0, r if n % 2 == 0 or n == 1 else ' '*settings['help_inset'] + r) # Why is the first line n == 1? Why are they negative when n%2==0? Idk
+            help_box.addstr(top_offset, 0, r if n % 2 == 0 or n == 1 else ' '*settings['help_inset'] + r)
             top_offset += 1
 
     help_box.refresh(help_offset, 0, help_y + 1, help_x + 1, help_y + help_height - 2, help_x + help_width - 2)
@@ -668,7 +656,7 @@ def displayHelp():
     while True:
         c = screen.getch()
         if chr(c) in ('j', 'J', '^[B') or c == curses.KEY_DOWN:
-            help_offset += 1 if help_offset < text_rows - help_height + 2 else 0 # Feel like it shouldn't be 3 but oh well
+            help_offset += 1 if help_offset < text_rows - help_height + 2 else 0
             help_box.refresh(help_offset, 0, help_y + 1, help_x + 1, help_y + help_height - 2, help_x + help_width - 1)
         elif chr(c) in ('k', 'K', '^[A') or c == curses.KEY_UP:
             help_offset -= 1 if help_offset > 0 else 0
@@ -842,7 +830,6 @@ except:
 screen = curses.initscr()
 
 curses.noecho()
-# curses.cbreak()
 curses.start_color()
 curses.use_default_colors()
 
@@ -922,6 +909,5 @@ screen.refresh()
 main()
 
 curses.echo()
-# curses.nocbreak()
 
 curses.endwin()
