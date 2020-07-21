@@ -1,22 +1,20 @@
 import curses
-import os
 import sys
 import re
 import mimetypes
-import pdb
 from requests import get, post
 from textwrap import wrap
 from time import sleep
-from multiprocessing.pool import ThreadPool
+from concurrent.futures import ThreadPoolExecutor
 from subprocess import DEVNULL, STDOUT, check_call
 from datetime import datetime
+from os import uname, system, path
 try:
     import magic
 except ImportError:
     pass
 
 # TODO:
-# [ ] Extensively test text input
 # [ ] Set conversation to read on device when you view it on here
 # [ ] Add more nice-looking colorschemes
 
@@ -326,7 +324,7 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
     mbox_wrapper.attron(curses.color_pair(4))
     mbox_wrapper.refresh()
 
-    if settings['debug']: updateHbox('set mbox_wrapper attributes, tmh is ' + str(total_messages_height))
+    if settings['debug']: updateHbox('set mw attr, tmh:' + str(total_messages_height) + ', mw:' + str(messages_width))
     mbox.resize(total_messages_height, messages_width - 2)
 
     for n, m in enumerate(messages):
@@ -496,7 +494,7 @@ def sendFileCmd(cmd):
     if settings['debug']: updateHbox('set initiail vars')
 
     for f in strings:
-        if not os.path.isfile(f):
+        if not path.isfile(f):
             updateHbox('one of your files did not exist, please try again')
             return
         if settings['debug']: updateHbox('setting mime type for file ')
@@ -721,11 +719,11 @@ def setVar(cmd):
         val = 'True' if val in ('true', 'True') else 'False'
     
     if sys.platform == 'linux':
-        sed_string = 'sed -i "s/\'' + var + '\': ' + str(oldval) + ',/\'' + var + '\': ' + str(val) + ',/" ' + os.path.basename(__file__)
-        os.system(sed_string)
+        sed_string = 'sed -i "s/\'' + var + '\': ' + str(oldval) + '/\'' + var + '\': ' + str(val) + '/" ' + path.realpath(__file__)
+        system(sed_string)
     else:
-        sed_string = 'sed -i \'\' -e "s+\'' + var + '\': ' + str(oldval) + '+\'' + var + '\': ' + str(val) + '+" ' + os.path.basename(__file__)
-        os.system(sed_string)
+        sed_string = 'sed -i \'\' -e "s+\'' + var + '\': ' + str(oldval) + '+\'' + var + '\': ' + str(val) + '+" ' + path.realpath(__file__)
+        system(sed_string)
 
     updateHbox('updated ' + var + ' to ' + val)
 
@@ -750,26 +748,46 @@ def openAttachment(att_num):
 def pingServer():
     global chats
     global end_all
-    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?check=0' 
-    while (not end_all) and (settings['poll_interval'] != -1) :
-        sleep(settings['ping_interval'])
+    global settings
+    global chat_padding
+    global chat_offset
+    global current_chat_id
+
+    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?check=0'
+    while (not end_all) and (settings['ping_interval'] != -1):
+        for i in range(settings['ping_interval'] / settings['poll_exit']):
+            sleep(settings['poll_exit'])
+            if end_all:
+                break
         try:
-            new_chats = get(req_string).json()
+            new_chats = get(req_string).json()['chat_ids']
         except:
             print('Lost connection to server')
             end_all = True
-            exit()
+            break
         if len(new_chats) != 0:
-            reloadChats()
+            for n, i in enumerate(new_chats):
+                if i != chats[n].chat_id:
+                    reloadChats()
+                    break
+                else:
+                    top_pad = (chat_padding * n) + settings['chat_vertical_offset']
+                    cbox.addstr(top_pad, chat_offset - 2, '•', curses.color_pair(5))
+                    refreshCBox()
+
             if current_chat_id in new_chats:
                 loadMessages(current_chat_id)
-            os.system('notify-send "you got new texts!"') if os.uname()[0] != 'Darwin' else 0
+
+            system('notify-send "you got new texts!"') if uname()[0] != 'Darwin' else 0
+
+            updateHbox('loaded in new chats')
 
 def mainTask():
     global past_commands
     global end_all
     while not end_all:
         if len(past_commands) > 0 and past_commands[0][:2] in (':s', ':S'):
+            sleep(0.1) # So that the phone can have time to send the text before we reload the messages
             loadMessages(current_chat_id)
 
         cmd = getTboxText()
@@ -793,7 +811,6 @@ def mainTask():
         elif cmd[:2] in (':d', ':D') or cmd[:7] == 'display':
             showVar(cmd)
         elif cmd[:2] in (':a', ':A'):
-            if settings['debug']: updateHbox('going to get attachment')
             openAttachment(cmd[3:])
         elif cmd in (':q', ':Q', 'exit', 'quit'):
             break
@@ -805,21 +822,22 @@ def mainTask():
         else:
             past_commands = [cmd]
 
-        if settings['debug']: updateHbox('added ' + cmd + ' to p_c')
-
     updateHbox('exiting...')
     end_all = True
         
 def main():
     global end_all
-    pool = ThreadPool(processes=2)
-    pool.apply_async(pingServer)
-    pool.apply_async(mainTask)
+    
+    executor = ThreadPoolExecutor(max_workers=3)
+
+    executor.submit(mainTask)
+    executor.submit(pingServer)
 
     while not end_all:
         sleep(settings['poll_exit'])
     
-    pool.terminate()
+    print('exiting...theoretically...')
+    executor.shutdown(wait=False)
 
 try:          
     chats = getChats(settings['default_num_chats'])
@@ -853,8 +871,6 @@ t_y = rows - t_height - h_height
 min_chat_width = 24
 chats_width = int(cols * 0.3) if cols * 0.3 > min_chat_width else min_chat_width
 chats_height = (len(chats) + settings['chat_vertical_offset']) * chat_padding
-if settings['debug']: print('chats_height: %d' % chats_height)
-if settings['debug']: sleep(1)
 chats_x = t_x
 chats_y = 0
 cbox_wrapper_height = t_y
@@ -909,5 +925,4 @@ screen.refresh()
 main()
 
 curses.echo()
-
 curses.endwin()
