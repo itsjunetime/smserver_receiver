@@ -44,6 +44,7 @@ If you have issues with that, check to make sure that you've installed all of th
 
 ### Acknowledged Issues
 - Messages with an attachment and no text have an extra blank line underneath them
+- The new composition box fails to send a text every time (in my limited testing). Working on this.
 
 ## Settings variables:
 - `ip`: This contains the private IP of your host device, as a string. Should start with '192.168' or '10.10'. 

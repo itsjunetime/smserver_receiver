@@ -1,4 +1,5 @@
 import curses
+import curses.textpad
 import sys
 import re
 import mimetypes
@@ -12,6 +13,7 @@ from os import uname, system, path
 try:
     import magic
 except ImportError:
+    print('warning: please install python-magic. this is not fatal.')
     pass
 
 # TODO:
@@ -36,10 +38,13 @@ settings = {
     'messages_title': '| messages |',
     'input_title': '| input here :) |',
     'help_title': '| help |',
+    'to_title': '| to: |',
+    'compose_title': '| message: |',
     'colorscheme': 'outrun',
     'help_inset': 5,
     'ping_interval': 10,
     'poll_exit': 0.5,
+    'send_timeout': 10,
     'default_num_messages': 100,
     'default_num_chats': 30,
     'debug': False,
@@ -72,6 +77,8 @@ help_message = ['COMMANDS:',
 'this allows you view the value of any variable in settings at runtime. just type ":d <var>", and it will display its current value. E.G. ":d ping_interval"',
 ':r, :R, reload - ',
 'this reloads the chats, getting current chats from the currently set ip address and port.',
+':n, :N, new - ',
+'this shows a new composition box, from which you can send a text to a new conversation (or to a conversation that you can\'t quickly access. Type in the recipient(s), then hit enter, and you\'ll be able to enter the body of the message. Once you enter the body, you won\'t be able to change the recipients. Hit ctrl+g to send the text.',
 'if characters are not appearing, or the program is acting weird, just type a bunch of random characters and hit enter. No harm will be done for a bad command. For more information, visit: https://github.com/iandwelker/smserver_receiver']
 
 color_schemes = {
@@ -143,6 +150,7 @@ selected_box = 'c' # Gonna be 'm' or 'c', between cbox and mbox.
 
 end_all = False
 displaying_help = False
+displaying_new = False
 
 def getDate(ts):
     return datetime.fromtimestamp(int(ts)).strftime('%Y-%m-%d %H:%M')
@@ -471,10 +479,10 @@ def sendTextCmd(cmd):
     req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
     if settings['debug']: updateHbox('set req_string')
     try:
-        post(req_string, files={"attachments": (None, '0')}, data=vals) # You have to put some value for files or the server will crash; idk why bro
+        post(req_string, files={"attachments": (None, '0')}, data=vals, timeout=settings['send_timeout']) # You have to put some value for files or the server will crash; idk why bro
         updateHbox('text sent!')
     except: 
-        updateHbox('Failed to send text :(')
+        updateHbox('failed to send text :(')
     if current_chat_index != 0:
         reloadChats()
 
@@ -529,10 +537,7 @@ def getTextText():
         elif ch in (10, curses.KEY_ENTER):
             return whole_string
         elif ch in (127, curses.KEY_BACKSPACE):
-            if right_offset == 0:
-                whole_string = whole_string[:len(whole_string) - 1]
-            else:
-                whole_string = whole_string[:len(whole_string) - right_offset - 1] + whole_string[len(whole_string) - right_offset:]
+            whole_string = whole_string[:len(whole_string) - right_offset - 1] + whole_string[len(whole_string) - right_offset:] # This should work even when right_offset == 0
                 
             tbox.addstr(1, 1, str(whole_string + ' '*max((t_width - len(whole_string) - 3), 0))[max((len(whole_string) - t_width + 3), 0):])
 
@@ -541,11 +546,8 @@ def getTextText():
         elif ch in (curses.KEY_RIGHT,):
             right_offset -= 1 if right_offset > 0 else 0
         elif len(chr(ch)) == 1:
-            if right_offset != 0:
-                whole_string = whole_string[:len(whole_string) - right_offset] + chr(ch) + whole_string[len(whole_string) - right_offset:]
-            else:
-                whole_string += chr(ch)
-            
+            whole_string = whole_string[:len(whole_string) - right_offset] + chr(ch) + whole_string[len(whole_string) - right_offset:] # Should work even when right_offset == 0
+
             if len(whole_string) < t_width - 2:
                 tbox.addstr(1, 1, whole_string)
             else:
@@ -738,12 +740,117 @@ def showVar(cmd):
 def openAttachment(att_num):
     global displayed_attachments
     if len(displayed_attachments) <= int(att_num):
+        updateHbox('attachment ' + str(att_num) + ' does not exist.')
         return
     http_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/attachments?path=' + str(displayed_attachments[int(att_num)]).replace(' ', '%20')
     if sys.platform == 'linux':
         check_call(['xdg-open', http_string], stdout=DEVNULL, stderr=STDOUT)
     else:
         check_call(['open', http_string], stdout=DEVNULL, stderr=STDOUT)
+
+def newComposition():
+    global displaying_new
+    
+    to_height = 3
+    to_width = int(cols * 0.7)
+
+    new_height = int(rows * 0.7) - to_height
+    new_width = int(cols * 0.7)
+    new_x = int((cols - new_width) / 2)
+    new_y = int((rows - new_height) / 2) + to_height
+
+    to_x = int((cols - to_width) / 2)
+    to_y = new_y - to_height
+
+    to_box = curses.newwin(to_height, to_width, to_y, to_x)
+    to_box.attron(curses.color_pair(1))
+    to_box.box()
+    to_box.addstr(0, settings['title_offset'], settings['to_title'])
+    to_box.attron(curses.color_pair(7))
+    to_box.refresh()
+
+    comp_box = curses.newwin(new_height, new_width, new_y, new_x)
+    comp_box.attron(curses.color_pair(4))
+    comp_box.box()
+    comp_box.addstr(0, settings['title_offset'], settings['compose_title'])
+    comp_box.addstr(new_height - 1, settings['title_offset'], '| ctrl+g to send |')
+    comp_box.attron(curses.color_pair(7))
+    comp_box.refresh()
+
+    sub_comp = curses.newwin(new_height - 2, new_width - 2, new_y + 1, new_x + 1)
+    sub_comp.keypad(1)
+    edit_box = curses.textpad.Textbox(sub_comp, insert_mode=True)
+
+    displaying_new = True
+
+    right_offset = 0
+    whole_to = ''
+    whole_message = ''
+    sent = False
+
+    def msg_validator(ch):
+        global whole_message
+        if ch in (27, curses.KEY_CANCEL):
+            whole_message = ''
+            return 7
+        elif ch in (127, curses.KEY_BACKSPACE):
+            edit_box.do_command(curses.KEY_BACKSPACE)
+
+        return ch
+
+    while True:
+        ch = to_box.getch(1, min(1 + len(whole_to) - right_offset, t_width - 2) if len(whole_to) < to_width - 2 else to_width - 2 - right_offset)
+        if ch in (27, curses.KEY_CANCEL):
+            whole_to = ''
+            break
+        elif ch in (10, curses.KEY_ENTER):
+            break
+        elif ch in (127, curses.KEY_BACKSPACE):
+            whole_to = whole_to[:len(whole_to) - right_offset - 1] + whole_to[len(whole_to) - right_offset:]
+            to_box.addstr(1, 1, str(whole_to + ' '*max((to_width - len(whole_to) - 3), 0))[max((len(whole_to) - to_width + 3), 0):])
+        elif ch in (curses.KEY_LEFT,) and right_offset < len(whole_to):
+            right_offset += 1
+        elif ch in (curses.KEY_RIGHT,) and right_offset > 0:
+            right_offset -= 1
+        elif len(chr(ch)) == 1:
+            whole_to = whole_to[:len(whole_to) - right_offset] + chr(ch) + whole_to[len(whole_to) - right_offset:]
+
+            if len(whole_to) < to_width - 2:
+                to_box.addstr(1, 1, whole_to)
+            else:
+                tbox.addstr(1, 1, whole_to[len(whole_to) - t_width + 3:])
+                
+    if len(whole_to) != 0:
+        whole_message = edit_box.edit(msg_validator)
+
+    if len(whole_message) != 0 and len(whole_to) != 0:
+        vals = {'text': 'text:' + whole_message, 'chat': 'chat:' + whole_to}
+        req_string = 'https://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
+        updateHbox('sending...')
+        try:
+            post(req_string, files={"attachments": (None, '0')}, data=vals, timeout=settings['send_timeout'])
+            updateHbox('text sent!')
+            sent = True
+        except:
+            updateHbox('failed to send text :(')
+
+    else:
+        updateHbox('cancelled; text was not sent')
+
+    to_box.clear()
+    to_box.refresh()
+    comp_box.clear()
+    comp_box.refresh()
+    del to_box
+    del comp_box
+
+    displaying_new = False
+
+    switchSelected()
+    switchSelected()
+
+    if sent:
+        reloadChats()
 
 def pingServer():
     global chats
@@ -786,7 +893,7 @@ def mainTask():
     global past_commands
     global end_all
     while not end_all:
-        if len(past_commands) > 0 and past_commands[0][:2] in (':s', ':S'):
+        if len(past_commands) > 0 and past_commands[0][:3] in (':s ', ':S '):
             sleep(0.1) # So that the phone can have time to send the text before we reload the messages
             loadMessages(current_chat_id)
 
@@ -796,9 +903,9 @@ def mainTask():
 
         if len(cmd) == 0:
             updateHbox('command cancelled.')
-        elif cmd[:2] in (':s', ':S') or cmd[:4] == 'send':
+        elif cmd[:3] in (':s ', ':S ') or cmd[:4] == 'send':
             sendTextCmd(cmd)
-        elif cmd[:2] in (':c', ':C') or cmd[:4] == 'chat':
+        elif cmd[:3] in (':c ', ':C ') or cmd[:4] == 'chat':
             selectChat(cmd)
         elif cmd[:2] in (':f', ':F') or cmd[:4] == 'file':
             sendFileCmd(cmd)
@@ -806,12 +913,14 @@ def mainTask():
             reloadChats()
         elif cmd in (':h', ':H', 'help'):
             displayHelp()
-        elif cmd[:2] in (':b', ':B') or cmd[:4] == 'bind':
+        elif cmd[:3] in (':b ', ':B ') or cmd[:4] == 'bind':
             setVar(cmd)
-        elif cmd[:2] in (':d', ':D') or cmd[:7] == 'display':
+        elif cmd[:3] in (':d ', ':D ') or cmd[:7] == 'display':
             showVar(cmd)
-        elif cmd[:2] in (':a', ':A'):
+        elif cmd[:3] in (':a ', ':A ') or cmd[:10] == 'attachment':
             openAttachment(cmd[3:])
+        elif cmd.strip() in (':n', ':N', 'new'):
+            newComposition()
         elif cmd in (':q', ':Q', 'exit', 'quit'):
             break
         else:
