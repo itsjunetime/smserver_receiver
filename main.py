@@ -3,6 +3,7 @@ import curses.textpad
 import sys
 import re
 import mimetypes
+import websocket
 from requests import get, post
 from textwrap import wrap
 from time import sleep
@@ -23,6 +24,7 @@ except ImportError:
 settings = {
     'ip': '192.168.50.10',
     'port': '8741',
+    'socket_port': '8740',
     'pass': 'toor',
     'req': 'requests',
     'post': 'send',
@@ -483,8 +485,8 @@ def sendTextCmd(cmd):
         updateHbox('text sent!')
     except: 
         updateHbox('failed to send text :(')
-    if current_chat_index != 0:
-        reloadChats()
+
+    onMsg(None, 'chat:' + current_chat_id)
 
 def sendFileCmd(cmd):
     global current_chat_id
@@ -852,42 +854,29 @@ def newComposition():
     if sent:
         reloadChats()
 
-def pingServer():
-    global chats
-    global end_all
-    global settings
-    global chat_padding
-    global chat_offset
-    global current_chat_id
+def onMsg(ws, msg):
+    prefix = msg[:msg.find(':')]
+    content = msg[msg.find(':') + 1:]
 
-    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?check=0'
-    while (not end_all) and (settings['ping_interval'] != -1):
-        for i in range(settings['ping_interval'] / settings['poll_exit']):
-            sleep(settings['poll_exit'])
-            if end_all:
-                break
-        try:
-            new_chats = get(req_string).json()['chat_ids']
-        except:
-            print('Lost connection to server')
-            end_all = True
-            break
-        if len(new_chats) != 0:
-            for n, i in enumerate(new_chats):
-                if i != chats[n].chat_id:
-                    reloadChats()
-                    break
-                else:
-                    top_pad = (chat_padding * n) + settings['chat_vertical_offset']
-                    cbox.addstr(top_pad, chat_offset - 2, '•', curses.color_pair(5))
-                    refreshCBox()
+    if prefix == 'chat':
+        if content != chats[0].chat_id:
+            updateHbox('does not equal. ctn: ' + content + ', 0: ' + chats[0].chat_id)
+            reloadChats()
+        else:
+            cbox.addstr(settings['chat_vertical_offset'], chat_offset - 2, '•', curses.color_pair(5))
+            refreshCBox()
 
-            if current_chat_id in new_chats:
-                loadMessages(current_chat_id)
+        if content == current_chat_id:
+            loadMessages(current_chat_id)
 
-            system('notify-send "you got new texts!"') if uname()[0] != 'Darwin' else 0
+        if uname()[0].strip() != 'Darwin': system('notify-send "you got new texts!"')
 
-            updateHbox('loaded in new chats')
+        updateHbox('loaded in new chats')
+
+def recSocket():
+    global socket
+
+    socket.run_forever()
 
 def mainTask():
     global past_commands
@@ -934,17 +923,17 @@ def mainTask():
     updateHbox('exiting...')
     end_all = True
         
-def main():
+def setupAsync():
     global end_all
     
     executor = ThreadPoolExecutor(max_workers=3)
 
     executor.submit(mainTask)
-    executor.submit(pingServer)
+    executor.submit(recSocket)
 
     while not end_all:
         sleep(settings['poll_exit'])
-    
+
     print('exiting...theoretically...')
     executor.shutdown(wait=False)
 
@@ -1031,7 +1020,12 @@ updateHbox('type \':h\' to get help!')
 
 screen.refresh()
 
-main()
+url='ws://' + settings['ip'] + ':' + settings['socket_port']
+socket = websocket.WebSocketApp(url, on_message = onMsg)
+
+setupAsync()
 
 curses.echo()
 curses.endwin()
+
+socket.close()

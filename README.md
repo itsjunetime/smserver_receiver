@@ -7,6 +7,7 @@ Unnamed as of yet. Maybe I'll just keep it like this, idk. If you have a good na
  - curses -- `pip3 install curses`
  - requests -- `pip3 install requests`
  - magic -- `pip3 install python-magic`
+ - websocket-client -- `pip3 install websocket-client`
  
 The variables in lines 17 through 41 are the ones that would need to be changed for each inidividual's needs. The only one that you should need to set is 'ip', and the rest should be able to be left as they are preset, and allow everything to work perfectly. Look at the comment above each variable to see what it does, and whether or not you should bother changing it. 
 
@@ -21,8 +22,7 @@ To use this, you have to host a server with either my Mac or iPhone hosting app;
 If you have issues with that, check to make sure that you've installed all of the above listed dependencies (just install them with pip3, e.g. `pip3 install curses`). If you're still having issues, continue to 'debugging' down below.
 
 ### Current features:
- - Sending texts
- - Send attachments
+ - Sending texts & attachments
  - Viewing available conversations
  - View messages from any conversation
  - Easy viewing of image attachments outside of terminal
@@ -30,10 +30,11 @@ If you have issues with that, check to make sure that you've installed all of th
  - Notifications when a new text is received
  - Extensive customization to run well on any system
  - Easy colorscheme customization
+ - Starting new conversations
+ - Websockets for instant communication
 
 ### Planned future features:
  - Displaying images with jp2a
- - Starting new conversations
  - Searching through existing conversations
 
 ## Debugging
@@ -49,6 +50,7 @@ If you have issues with that, check to make sure that you've installed all of th
 ## Settings variables:
 - `ip`: This contains the private IP of your host device, as a string. Should start with '192.168' or '10.10'. 
 - `port`: This should default to 8741, and should be the port over which your host device communicates.
+- `socket_port`: This is the port which the websocket will communicate on. The default should be 8740, keep that if you haven't chaned anything on the host device.
 - `pass`: This contains the password to your server. It may need to be changed if you change the password to your main server.
 - `req`: This should not be changed, unless you've messed with the source code of the smserver app. It's just the subdirectory of the main server where the requests will go.
 - `chats_scroll_factor`: this is how many lines the chats box (on the far left) will scroll when you scroll up or down
