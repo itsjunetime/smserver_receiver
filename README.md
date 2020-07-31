@@ -11,7 +11,7 @@ Unnamed as of yet. Maybe I'll just keep it like this, idk. If you have a good na
  
 The variables in lines 17 through 41 are the ones that would need to be changed for each inidividual's needs. The only one that you should need to set is 'ip', and the rest should be able to be left as they are preset, and allow everything to work perfectly. Look at the comment above each variable to see what it does, and whether or not you should bother changing it. 
 
-To use this, you have to host a server with either my Mac or iPhone hosting app; those should be publicly available whenever this is. 
+To use this, you have to host a server with either my Mac or iPhone hosting app; those should be publicly available whenever this is. Also, this only has support for macOS & linux. I have not yet been able to test with windows but I know some parts definitely won't work.
 
 ## To run
 
@@ -46,6 +46,7 @@ If you have issues with that, check to make sure that you've installed all of th
 ### Acknowledged Issues
 - Messages with an attachment and no text have an extra blank line underneath them
 - The new composition box fails to send a text every time (in my limited testing). Working on this.
+- The program randomly completely spazzes out, replaces every box with random characters, and tries to print something to your printer?? This is absolutely baffling and I have no idea what is causing it.
 
 ## Settings variables:
 - `ip`: This contains the private IP of your host device, as a string. Should start with '192.168' or '10.10'. 

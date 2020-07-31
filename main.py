@@ -1,6 +1,5 @@
 import curses
 import curses.textpad
-import sys
 import re
 import mimetypes
 import websocket
@@ -49,7 +48,7 @@ settings = {
     'send_timeout': 10,
     'default_num_messages': 100,
     'default_num_chats': 30,
-    'debug': False,
+    'debug': True,
     'max_past_commands': 10,
     'has_authenticated': False
 }
@@ -486,7 +485,8 @@ def sendTextCmd(cmd):
     except: 
         updateHbox('failed to send text :(')
 
-    onMsg(None, 'chat:' + current_chat_id)
+    sleep(0.1)
+    onMsg(None, 'text:' + current_chat_id, from_me = True)
 
 def sendFileCmd(cmd):
     global current_chat_id
@@ -722,7 +722,7 @@ def setVar(cmd):
     elif type(oldval) == bool:
         val = 'True' if val in ('true', 'True') else 'False'
     
-    if sys.platform == 'linux':
+    if uname()[0].strip() != 'Darwin':
         sed_string = 'sed -i "s/\'' + var + '\': ' + str(oldval) + '/\'' + var + '\': ' + str(val) + '/" ' + path.realpath(__file__)
         system(sed_string)
     else:
@@ -745,7 +745,7 @@ def openAttachment(att_num):
         updateHbox('attachment ' + str(att_num) + ' does not exist.')
         return
     http_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/attachments?path=' + str(displayed_attachments[int(att_num)]).replace(' ', '%20')
-    if sys.platform == 'linux':
+    if uname()[0].strip() != 'Darwin':
         check_call(['xdg-open', http_string], stdout=DEVNULL, stderr=STDOUT)
     else:
         check_call(['open', http_string], stdout=DEVNULL, stderr=STDOUT)
@@ -854,19 +854,23 @@ def newComposition():
     if sent:
         reloadChats()
 
-def onMsg(ws, msg):
+def onMsg(ws, msg, from_me = False):
+    global current_chat_id
+
     prefix = msg[:msg.find(':')]
     content = msg[msg.find(':') + 1:]
 
-    if prefix == 'chat':
+    if settings['debug']: updateHbox('rec: prefix: ' + prefix + ', content: ' + content + ', currentid: ' + current_chat_id)
+
+    if prefix == 'text':
         if content != chats[0].chat_id:
             updateHbox('does not equal. ctn: ' + content + ', 0: ' + chats[0].chat_id)
             reloadChats()
-        else:
+        elif not from_me:
             cbox.addstr(settings['chat_vertical_offset'], chat_offset - 2, '•', curses.color_pair(5))
             refreshCBox()
 
-        if content == current_chat_id:
+        if content.strip() == current_chat_id:
             loadMessages(current_chat_id)
 
         if uname()[0].strip() != 'Darwin': system('notify-send "you got new texts!"')
@@ -882,9 +886,9 @@ def mainTask():
     global past_commands
     global end_all
     while not end_all:
-        if len(past_commands) > 0 and past_commands[0][:3] in (':s ', ':S '):
-            sleep(0.1) # So that the phone can have time to send the text before we reload the messages
-            loadMessages(current_chat_id)
+        # if len(past_commands) > 0 and past_commands[0][:3] in (':s ', ':S '):
+        #     sleep(0.1) # So that the phone can have time to send the text before we reload the messages
+        #     loadMessages(current_chat_id)
 
         cmd = getTboxText()
 
