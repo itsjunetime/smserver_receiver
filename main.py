@@ -48,7 +48,7 @@ settings = {
     'send_timeout': 10,
     'default_num_messages': 100,
     'default_num_chats': 30,
-    'debug': True,
+    'debug': False,
     'max_past_commands': 10,
     'has_authenticated': False
 }
