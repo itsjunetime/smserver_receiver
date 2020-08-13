@@ -41,7 +41,7 @@ settings = {
     'help_title': '| help |',
     'to_title': '| to: |',
     'compose_title': '| message: |',
-    'colorscheme': 'outrun',
+    'colorscheme': 'forest',
     'help_inset': 5,
     'ping_interval': 10,
     'poll_exit': 0.5,
@@ -88,7 +88,8 @@ color_schemes = {
     # [6]: Text color, [7]: Hints box color
     "default": [6, 39, 248, -1, 219, 39, 231, 9],
     "outrun": [211, 165, 238, 6, 228, 205, 231, 209],
-    "coral": [202, 117, 251, 208, 207, 73, 7, 79]
+    "coral": [202, 117, 251, 208, 207, 73, 7, 79],
+    "forest": [48, 81, 95, 36, 39, 207, 253, 217]
 }
 
 print('Loading ...')
@@ -874,6 +875,7 @@ def onMsg(ws, msg, from_me = False):
             loadMessages(current_chat_id)
 
         if uname()[0].strip() != 'Darwin': system('notify-send "you got new texts!"')
+        else: system('osascript -e \'display notification "You received new texts in SMServer!" with title "New Texts"\'')
 
         updateHbox('loaded in new chats')
 

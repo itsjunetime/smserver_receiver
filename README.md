@@ -1,5 +1,8 @@
 # Receiver app for SMServer
 
+![What it looks like](smserver_receiver.png)
+<span style="font-weight: 200; font-size: 12px;">SMServer_receiver running on Konsole</span>
+
 Unnamed as of yet. Maybe I'll just keep it like this, idk. If you have a good name, let me know, 'cause I need one. 
 
 ### Requires:
