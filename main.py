@@ -1,8 +1,8 @@
 import curses
 import curses.textpad
 import re
-import mimetypes
 import websocket
+import sys
 from requests import get, post
 from textwrap import wrap
 from time import sleep
@@ -13,6 +13,7 @@ from os import uname, system, path
 try:
     import magic
 except ImportError:
+    import mimetypes
     print('warning: please install python-magic. this is not fatal.')
     pass
 
@@ -22,6 +23,7 @@ except ImportError:
 
 settings = {
     'ip': '192.168.50.10',
+    'fallback': '192.168.50.10',
     'port': '8741',
     'socket_port': '8740',
     'pass': 'toor',
@@ -45,12 +47,12 @@ settings = {
     'help_inset': 5,
     'ping_interval': 10,
     'poll_exit': 0.5,
-    'send_timeout': 10,
+    'timeout': 10,
     'default_num_messages': 100,
     'default_num_chats': 30,
-    'debug': False,
     'max_past_commands': 10,
-    'has_authenticated': False
+    'reload_on_change': False,
+    'debug': False,
 }
 
 help_message = ['COMMANDS:',
@@ -153,24 +155,80 @@ selected_box = 'c' # Gonna be 'm' or 'c', between cbox and mbox.
 end_all = False
 displaying_help = False
 displaying_new = False
+has_authenticated = False
+
+def parseArgs():
+    global settings
+    edit_param = ''
+    for n, i in enumerate(sys.argv[1:]):
+        if i in ('--help', '-h'):
+            print('Usage: python3 ./main.py [options]')
+            print('Options (format as --option value, e.g. \'--port 80\')\n')
+            l = len(max(settings, key=len)) + 3
+            print('\tOption' + ' '*(l - len('Option')) + 'Type\tCurrent Value\n')
+            for i in settings:
+                t = str(type(settings[i])).split("'")[1]
+                v = ("'" + settings[i] + "'") if type(settings[i]) == str else str(settings[i])
+                print('\t' + i + ' '*(l-len(i)) + t + '\t' + v)
+            
+            exit()
+
+        if edit_param == '':
+            if i[:2] != '--' or i[2:] not in settings:
+                print(f'Invalid option {i}') 
+                exit()
+            else:
+                edit_param = i[2:]
+        else:
+            if type(settings[edit_param]) == int: 
+                print('int')
+                try:
+                    settings[edit_param] = int(i)
+                    print(f'Set {edit_param} to {i}')
+                except:
+                    print(f'Cannot convert \'{i}\' to type int')
+                    exit()
+            elif type(settings[edit_param]) == bool:
+                try:
+                    settings[edit_param] = True if i in ('True', 'true') else False
+                    print(f'Set {edit_param} to {i}')
+                except ValueError:
+                    print(f'Cannot convert \'{i}\' to type bool')
+                    exit()
+            elif type(settings[edit_param]) == float:
+                try:
+                    settings[edit_param] = float(i)
+                    print(f'Set {edit_param} to {i}')
+                except ValueError:
+                    print(f'Cannot convert \'{i}\' to type float')
+                    exit()
+            else:
+                print('str')
+                if edit_param == 'colorscheme' and i not in color_schemes:
+                    print(f'{i} is not an available colorscheme. Available colorschemes are:')
+                    for i in color_schemes:
+                        print(i)
+                    exit()
+                print(f'Set {edit_param} to {i}')
+                settings[edit_param] = i
+            
+            edit_param = ''
 
 def getDate(ts):
     return datetime.fromtimestamp(int(ts)).strftime('%Y-%m-%d %H:%M')
 
 def getChats(num = settings['default_num_chats'], offset = 0):
     global num_requested_chats
-    if not settings['has_authenticated']:
+    global has_authenticated
+    if not has_authenticated:
         authenticate()
 
-    try:
-        req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?chat=0&num_chats=' + str(num) + "&chats_offset=" + str(offset)
-    except:
-        print('Fault was in req_string')
+    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?chat=0&num_chats=' + str(num) + "&chats_offset=" + str(offset)
 
     num_requested_chats = num if offset == 0 else num_requested_chats + num
 
     try:
-        new_chats = get(req_string)
+        new_chats = get(req_string, timeout=settings['timeout'])
     except:
         print('Failed to actually download the chats after authenticating.')
     new_json = new_chats.json()
@@ -178,7 +236,7 @@ def getChats(num = settings['default_num_chats'], offset = 0):
     if len(chat_items) == 0:
         authenticate()
         try:
-            chat_items = get(req_string).json()['chats']
+            chat_items = get(req_string, timeout=settings['timeout']).json()['chats']
         except:
             print('Failed to actually download the chats after authenticating.')
 
@@ -193,15 +251,16 @@ def getChats(num = settings['default_num_chats'], offset = 0):
     return return_val
 
 def authenticate():
+    global has_authenticated
     auth_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?password=' + settings['pass']
     try:
-        response = get(auth_string)
+        response = get(auth_string, timeout=settings['timeout'])
     except:
         print('Fault was in original authentication, string: %s' % auth_string)
     if response.text != 'true':
         print('Your password is wrong. Please change it and try again.')
         exit()
-    settings['has_authenticated'] = True
+    has_authenticated = True
 
 def loadInChats():
     global chats
@@ -280,7 +339,7 @@ def getMessages(id, num = settings['default_num_messages'], offset = 0):
 
     req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?person=' + id + '&num=' + str(num) + '&offset=' + str(offset)
     if settings['debug']: updateHbox('req: ' + req_string)
-    new_messages = get(req_string)
+    new_messages = get(req_string, timeout=settings['timeout'])
     if settings['debug']: updateHbox('got new_messages')
     new_json = new_messages.json()
     if settings['debug']: updateHbox('parsed json of new messages')
@@ -481,7 +540,7 @@ def sendTextCmd(cmd):
     req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
     if settings['debug']: updateHbox('set req_string')
     try:
-        post(req_string, files={"attachments": (None, '0')}, data=vals, timeout=settings['send_timeout']) # You have to put some value for files or the server will crash; idk why bro
+        post(req_string, files={"attachments": (None, '0')}, data=vals, timeout=settings['timeout']) # You have to put some value for files or the server will crash; idk why bro
         updateHbox('text sent!')
     except: 
         updateHbox('failed to send text :(')
@@ -712,7 +771,7 @@ def setVar(cmd):
         settings[var] = float(val)
     elif type(settings[var]) == bool:
         if settings['debug']: updateHbox('type is bool')
-        settings[var] = True if val == 'True' or val == 'true' else False
+        settings[var] = True if val in ('True', 'true') else False
     else:
         if settings['debug']: updateHbox('type is str')
         settings[var] = val
@@ -831,7 +890,7 @@ def newComposition():
         req_string = 'https://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
         updateHbox('sending...')
         try:
-            post(req_string, files={"attachments": (None, '0')}, data=vals, timeout=settings['send_timeout'])
+            post(req_string, files={"attachments": (None, '0')}, data=vals, timeout=settings['timeout'])
             updateHbox('text sent!')
             sent = True
         except:
@@ -943,11 +1002,18 @@ def setupAsync():
     print('exiting...theoretically...')
     executor.shutdown(wait=False)
 
+parseArgs()
+
 try:          
     chats = getChats(settings['default_num_chats'])
 except:
-    print('Could not authenticate. Check to make sure your host server is running.')
-    exit()
+    print('Original ip failed, trying fallback...')
+    try:
+        settings['ip'] = settings['fallback']
+        chats = getChats(settings['default_num_chats'])
+    except: 
+        print('Could not authenticate. Check to make sure your host server is running.')
+        exit()
 
 screen = curses.initscr()
 

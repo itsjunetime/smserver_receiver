@@ -18,7 +18,7 @@ To use this, you have to host a server with either my Mac or iPhone hosting app;
 
 ## To run
 
-1. First, get a copy of either the [Mac Version](https://github.com/iandwelker/mac_smserver) or [iOS Version](https://github.com/iandwelker/smserver) and start that running. 
+1. First, get a copy of either the [iOS Version of SMServer](https://github.com/iandwelker/smserver) and start that running. 
 2. Set your host device's private ip address in the 'ip' variable of the settings dictionary in main.py 
 3. Navigate to the folder where main.py resides, and run `python3 ./main.py`, 
 
