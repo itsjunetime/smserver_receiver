@@ -3,6 +3,7 @@ import curses.textpad
 import re
 import websocket
 import sys
+import urllib3
 from requests import get, post
 from textwrap import wrap
 from time import sleep
@@ -17,6 +18,8 @@ except ImportError:
     print('warning: please install python-magic. this is not fatal.')
     pass
 
+urllib3.disable_warnings()
+
 # TODO:
 # [ ] Set conversation to read on device when you view it on here
 # [ ] Add more nice-looking colorschemes
@@ -25,6 +28,7 @@ settings = {
     'ip': '192.168.50.10',
     'fallback': '192.168.50.10',
     'port': '8741',
+    'secure': True,
     'socket_port': '8740',
     'pass': 'toor',
     'req': 'requests',
@@ -52,7 +56,7 @@ settings = {
     'default_num_chats': 30,
     'max_past_commands': 10,
     'reload_on_change': False,
-    'debug': False,
+    'debug': True,
 }
 
 help_message = ['COMMANDS:',
@@ -93,8 +97,6 @@ color_schemes = {
     "coral": [202, 117, 251, 208, 207, 73, 7, 79],
     "forest": [48, 81, 95, 36, 39, 207, 253, 217]
 }
-
-print('Loading ...')
 
 if settings['ip'] == '' or settings['port'] == '':
     if settings['ip'] == '':
@@ -223,12 +225,12 @@ def getChats(num = settings['default_num_chats'], offset = 0):
     if not has_authenticated:
         authenticate()
 
-    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?chat=0&num_chats=' + str(num) + "&chats_offset=" + str(offset)
+    req_string = 'http' + ('s' if settings['secure'] else '') + '://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?chat=0&num_chats=' + str(num) + "&chats_offset=" + str(offset)
 
     num_requested_chats = num if offset == 0 else num_requested_chats + num
 
     try:
-        new_chats = get(req_string, timeout=settings['timeout'])
+        new_chats = get(req_string, timeout=settings['timeout'], verify=False)
     except:
         print('Failed to actually download the chats after authenticating.')
     new_json = new_chats.json()
@@ -236,7 +238,7 @@ def getChats(num = settings['default_num_chats'], offset = 0):
     if len(chat_items) == 0:
         authenticate()
         try:
-            chat_items = get(req_string, timeout=settings['timeout']).json()['chats']
+            chat_items = get(req_string, timeout=settings['timeout'], verify=False).json()['chats']
         except:
             print('Failed to actually download the chats after authenticating.')
 
@@ -252,9 +254,9 @@ def getChats(num = settings['default_num_chats'], offset = 0):
 
 def authenticate():
     global has_authenticated
-    auth_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?password=' + settings['pass']
+    auth_string = 'http' + ('s' if settings['secure'] else '') + '://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?password=' + settings['pass']
     try:
-        response = get(auth_string, timeout=settings['timeout'])
+        response = get(auth_string, timeout=settings['timeout'], verify=False)
     except:
         print('Fault was in original authentication, string: %s' % auth_string)
     if response.text != 'true':
@@ -337,9 +339,9 @@ def getMessages(id, num = settings['default_num_messages'], offset = 0):
     global single_width
     id = id.replace('+', '%2B')
 
-    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?person=' + id + '&num=' + str(num) + '&offset=' + str(offset)
+    req_string = 'http' + ('s' if settings['secure'] else '') + '://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?person=' + id + '&num=' + str(num) + '&offset=' + str(offset)
     if settings['debug']: updateHbox('req: ' + req_string)
-    new_messages = get(req_string, timeout=settings['timeout'])
+    new_messages = get(req_string, timeout=settings['timeout'], verify=False)
     if settings['debug']: updateHbox('got new_messages')
     new_json = new_messages.json()
     if settings['debug']: updateHbox('parsed json of new messages')
@@ -536,11 +538,12 @@ def sendTextCmd(cmd):
         updateHbox('cancelled; text was not sent.')
         return
         
-    vals = {'text': 'text:' + new_text, 'chat': 'chat:' + current_chat_id}
-    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
+    # vals = {'text': 'text:' + new_text, 'chat': 'chat:' + current_chat_id}
+    vals = {'text': new_text, 'chat': current_chat_id}
+    req_string = 'http' + ('s' if settings['secure'] else '') + '://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
     if settings['debug']: updateHbox('set req_string')
     try:
-        post(req_string, files={"attachments": (None, '0')}, data=vals, timeout=settings['timeout']) # You have to put some value for files or the server will crash; idk why bro
+        post(req_string, files={"attachments": (None, '0')}, data=vals, timeout=settings['timeout'], verify=False) # You have to put some value for files or the server will crash; idk why tho
         updateHbox('text sent!')
     except: 
         updateHbox('failed to send text :(')
@@ -556,8 +559,9 @@ def sendFileCmd(cmd):
         updateHbox('you have not selected a conversation. please do so before attempting to send texts')
         return
 
-    req_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
-    vals = {'chat': 'chat:' + current_chat_id}
+    req_string = 'http' + ('s' if settings['secure'] else '') + '://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
+    # vals = {'chat': 'chat:' + current_chat_id}
+    vals = {'chat': current_chat_id}
     strings = [f for f in re.split('\'|"', cmd[3:]) if len(f.strip()) != 0]
     files = []
 
@@ -583,7 +587,7 @@ def sendFileCmd(cmd):
 
     for f in files:
         file_post = {'attachments': f}
-        post(req_string, files=file_post, data=vals)
+        post(req_string, files=file_post, data=vals, verify=False)
 
     updateHbox('sent it!')
 
@@ -886,11 +890,12 @@ def newComposition():
         whole_message = edit_box.edit(msg_validator)
 
     if len(whole_message) != 0 and len(whole_to) != 0:
-        vals = {'text': 'text:' + whole_message, 'chat': 'chat:' + whole_to}
-        req_string = 'https://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
+        # vals = {'text': 'text:' + whole_message, 'chat': 'chat:' + whole_to}
+        vals = {'text': whole_message, 'chat': whole_to}
+        req_string = 'http' + ('s' if settings['secure'] else '') + '://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
         updateHbox('sending...')
         try:
-            post(req_string, files={"attachments": (None, '0')}, data=vals, timeout=settings['timeout'])
+            post(req_string, files={"attachments": (None, '0')}, data=vals, timeout=settings['timeout'], verify=False)
             updateHbox('text sent!')
             sent = True
         except:
@@ -991,7 +996,7 @@ def mainTask():
 def setupAsync():
     global end_all
     
-    executor = ThreadPoolExecutor(max_workers=3)
+    executor = ThreadPoolExecutor(max_workers=2)
 
     executor.submit(mainTask)
     executor.submit(recSocket)
@@ -999,10 +1004,14 @@ def setupAsync():
     while not end_all:
         sleep(settings['poll_exit'])
 
+    socket.close()
+
     print('exiting...theoretically...')
     executor.shutdown(wait=False)
 
 parseArgs()
+
+print('Loading ...')
 
 try:          
     chats = getChats(settings['default_num_chats'])
@@ -1092,7 +1101,7 @@ updateHbox('type \':h\' to get help!')
 
 screen.refresh()
 
-url='ws://' + settings['ip'] + ':' + settings['socket_port']
+url='ws' + ('s' if settings['secure'] else '') + '://' + settings['ip'] + ':' + settings['socket_port']
 socket = websocket.WebSocketApp(url, on_message = onMsg)
 
 setupAsync()
