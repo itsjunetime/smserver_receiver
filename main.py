@@ -2,21 +2,23 @@ import curses
 import curses.textpad
 import re
 import websocket
-import sys
 import urllib3
-from requests import get, post
+import fileinput
+from sys import argv, platform
 from textwrap import wrap
 from time import sleep
 from concurrent.futures import ThreadPoolExecutor
 from subprocess import DEVNULL, STDOUT, check_call
 from datetime import datetime
-from os import uname, system, path
+from os import system, path
 try:
     import magic
 except ImportError:
     import mimetypes
     print('warning: please install python-magic. this is not fatal.')
     pass
+if 'win32' in platform:
+    from win10toast import ToastNotifier
 
 urllib3.disable_warnings()
 
@@ -761,10 +763,10 @@ def setVar(cmd):
         return
 
     if type(settings[var]) == int and not val.isdigit():
-        updateHbox('bad input type for variable.')
+        updateHbox('bad input type for ' + var + ' (must be int)')
         return
     elif type(settings[var]) == bool and val not in ('False', 'True', 'false', 'true'):
-        updateHbox('bad input type for variable.')
+        updateHbox('bad input type for ' + var + ' (must be bool)')
         return
 
     if type(settings[var]) == int:
@@ -785,13 +787,19 @@ def setVar(cmd):
         oldval = "'" + oldval + "'"
     elif type(oldval) == bool:
         val = 'True' if val in ('true', 'True') else 'False'
-    
-    if uname()[0].strip() != 'Darwin':
-        sed_string = 'sed -i "s/\'' + var + '\': ' + str(oldval) + '/\'' + var + '\': ' + str(val) + '/" ' + path.realpath(__file__)
-        system(sed_string)
-    else:
-        sed_string = 'sed -i \'\' -e "s+\'' + var + '\': ' + str(oldval) + '+\'' + var + '\': ' + str(val) + '+" ' + path.realpath(__file__)
-        system(sed_string)
+
+    # Cross platform, as oppsed to old sed method
+    for line in fileinput.input(__file__, inplace=1):
+        if ("'" + var + "': " + oldval + ",") in line:
+            line = line.replace(oldval, val)
+            break
+
+    # if uname()[0].strip() != 'Darwin':
+    #     sed_string = 'sed -i "s/\'' + var + '\': ' + str(oldval) + '/\'' + var + '\': ' + str(val) + '/" ' + path.realpath(__file__)
+    #     system(sed_string)
+    # else:
+    #     sed_string = 'sed -i \'\' -e "s+\'' + var + '\': ' + str(oldval) + '+\'' + var + '\': ' + str(val) + '+" ' + path.realpath(__file__)
+    #     system(sed_string)
 
     updateHbox('updated ' + var + ' to ' + val)
 
@@ -809,10 +817,18 @@ def openAttachment(att_num):
         updateHbox('attachment ' + str(att_num) + ' does not exist.')
         return
     http_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/attachments?path=' + str(displayed_attachments[int(att_num)]).replace(' ', '%20')
-    if uname()[0].strip() != 'Darwin':
-        check_call(['xdg-open', http_string], stdout=DEVNULL, stderr=STDOUT)
-    else:
+    
+    if 'darwin' in platform:
         check_call(['open', http_string], stdout=DEVNULL, stderr=STDOUT)
+    elif platform in ('linux', 'freebsd', 'openbsd'):
+        check_call(['xdg-open', http_string], stdout=DEVNULL, stderr=STDOUT)
+    elif 'win32' in platform:
+        system('explorer "' + http_string + '"')
+    
+    # if uname()[0].strip() != 'Darwin':
+    #     check_call(['xdg-open', http_string], stdout=DEVNULL, stderr=STDOUT)
+    # else:
+    #     check_call(['open', http_string], stdout=DEVNULL, stderr=STDOUT)
 
 def newComposition():
     global displaying_new
@@ -938,8 +954,12 @@ def onMsg(ws, msg, from_me = False):
         if content.strip() == current_chat_id:
             loadMessages(current_chat_id)
 
-        if uname()[0].strip() != 'Darwin': system('notify-send "you got new texts!"')
-        else: system('osascript -e \'display notification "You received new texts in SMServer!" with title "New Texts"\'')
+        if platform in ('linux', 'freebsd', 'openbsd'): system('notify-send "you got new texts from ' + content + '!"')
+        elif 'darwin' in platform: system('osascript -e \'display notification "You received new texts from ' + content + '!" with title "New Texts"\'')
+        elif 'win32' in platform: ToastNotifier().show_toast('New texts!', 'You received new texts from ' + content + '!')
+
+        # if uname()[0].strip() != 'Darwin': system('notify-send "you got new texts!"')
+        # else: system('osascript -e \'display notification "You received new texts in SMServer!" with title "New Texts"\'')
 
         updateHbox('loaded in new chats')
 
