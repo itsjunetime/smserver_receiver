@@ -164,7 +164,7 @@ has_authenticated = False
 def parseArgs():
     global settings
     edit_param = ''
-    for n, i in enumerate(sys.argv[1:]):
+    for n, i in enumerate(argv[1:]):
         if i in ('--help', '-h'):
             print('Usage: python3 ./main.py [options]')
             print('Options (format as --option value, e.g. \'--port 80\')\n')
