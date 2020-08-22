@@ -14,11 +14,13 @@ Unnamed as of yet. Maybe I'll just keep it like this, idk. If you have a good na
  
 The variables in lines 17 through 41 are the ones that would need to be changed for each inidividual's needs. The only one that you should need to set is 'ip', and the rest should be able to be left as they are preset, and allow everything to work perfectly. Look at the comment above each variable to see what it does, and whether or not you should bother changing it. 
 
-To use this, you have to host a server with either my Mac or iPhone hosting app; those should be publicly available whenever this is. Also, this only has support for macOS & linux. I have not yet been able to test with windows but I know some parts definitely won't work.
+To use this, you have to host a server with my [iPhone hosting app](https://github.com/iandwelker/smserver). It is now publicly available; read the README on the attached repo to install it manually or download it from [Twickd Repo](repo.twickd.com)
+
+This mostly supports windows. Everything should work fine, except for persistence. On Mac & Linux, when changing a variable in-app, the script file is edited to set the new value, using `sed`. However, as Windows does not have coreutils (and I couldn't get this to work with vanilla python), it does not currently support persistent settings.
 
 ## To run
 
-1. First, get a copy of either the [iOS Version of SMServer](https://github.com/iandwelker/smserver) and start that running. 
+1. First, get a copy of the [iOS Version of SMServer](https://github.com/iandwelker/smserver) and start that running. 
 2. Set your host device's private ip address in the 'ip' variable of the settings dictionary in main.py 
 3. Navigate to the folder where main.py resides, and run `python3 ./main.py`, 
 
@@ -41,19 +43,22 @@ If you have issues with that, check to make sure that you've installed all of th
  - Searching through existing conversations
 
 ## Debugging
-- To debug, set 'debug' to True on line 38 of main.py. 
+- To debug, set 'debug' to True on line 63 of `main.py`
 - Run the program again, and check what was the last thing to flash on the screen before the program either crashed or froze.
 - Cross-reference the printed text with the code (find where in the code that command is printed), and try to fix it from there if you know python/curses. 
 - If you don't want to mess with anything, submit an issue report on github with the last message that was printed, and what your settings array looks like. 
 
 ### Acknowledged Issues
 - Messages with an attachment and no text have an extra blank line underneath them
-- The new composition box fails to send a text every time (in my limited testing). Working on this.
 - The program randomly completely spazzes out, replaces every box with random characters, and tries to print something to your printer?? This is absolutely baffling and I have no idea what is causing it.
 
 ## Settings variables:
+### Any of these can be temporarily set without changing the script file by passing its name in with its value when calling the script. e.g. `python3 ./main.py --secure false` or `python3 ./main.py --colorscheme default`
+
 - `ip`: This contains the private IP of your host device, as a string. Should start with '192.168' or '10.10'. 
+- `fallback`: This is the fallback device IP to try if the host device fails.
 - `port`: This should default to 8741, and should be the port over which your host device communicates.
+- `secure`: If you have SSL enabled on SMServer, set this to true. If you have SSL disabled, set this to false.
 - `socket_port`: This is the port which the websocket will communicate on. The default should be 8740, keep that if you haven't chaned anything on the host device.
 - `pass`: This contains the password to your server. It may need to be changed if you change the password to your main server.
 - `req`: This should not be changed, unless you've messed with the source code of the smserver app. It's just the subdirectory of the main server where the requests will go.
