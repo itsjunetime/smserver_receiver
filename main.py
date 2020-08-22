@@ -3,6 +3,7 @@ import curses.textpad
 import re
 import websocket
 import urllib3
+import pdb
 import fileinput
 from sys import argv, platform
 from textwrap import wrap
@@ -11,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from subprocess import DEVNULL, STDOUT, check_call
 from datetime import datetime
 from os import system, path
+from requests import get, post
 try:
     import magic
 except ImportError:
@@ -58,7 +60,7 @@ settings = {
     'default_num_chats': 30,
     'max_past_commands': 10,
     'reload_on_change': False,
-    'debug': True,
+    'debug': False,
 }
 
 help_message = ['COMMANDS:',
@@ -788,18 +790,12 @@ def setVar(cmd):
     elif type(oldval) == bool:
         val = 'True' if val in ('true', 'True') else 'False'
 
-    # Cross platform, as oppsed to old sed method
-    for line in fileinput.input(__file__, inplace=1):
-        if ("'" + var + "': " + oldval + ",") in line:
-            line = line.replace(oldval, val)
-            break
-
-    # if uname()[0].strip() != 'Darwin':
-    #     sed_string = 'sed -i "s/\'' + var + '\': ' + str(oldval) + '/\'' + var + '\': ' + str(val) + '/" ' + path.realpath(__file__)
-    #     system(sed_string)
-    # else:
-    #     sed_string = 'sed -i \'\' -e "s+\'' + var + '\': ' + str(oldval) + '+\'' + var + '\': ' + str(val) + '+" ' + path.realpath(__file__)
-    #     system(sed_string)
+    if platform in ('linux', 'freebsd', 'openbsd'):
+        sed_string = 'sed -i "s/\'' + var + '\': ' + str(oldval) + '/\'' + var + '\': ' + str(val) + '/" ' + path.realpath(__file__)
+        system(sed_string)
+    elif platform == 'darwin':
+        sed_string = 'sed -i \'\' -e "s+\'' + var + '\': ' + str(oldval) + '+\'' + var + '\': ' + str(val) + '+" ' + path.realpath(__file__)
+        system(sed_string)
 
     updateHbox('updated ' + var + ' to ' + val)
 
@@ -825,11 +821,6 @@ def openAttachment(att_num):
     elif 'win32' in platform:
         system('explorer "' + http_string + '"')
     
-    # if uname()[0].strip() != 'Darwin':
-    #     check_call(['xdg-open', http_string], stdout=DEVNULL, stderr=STDOUT)
-    # else:
-    #     check_call(['open', http_string], stdout=DEVNULL, stderr=STDOUT)
-
 def newComposition():
     global displaying_new
     
