@@ -12,7 +12,7 @@ Unnamed as of yet. Maybe I'll just keep it like this, idk. If you have a good na
  - magic -- `pip3 install python-magic`
  - websocket-client -- `pip3 install websocket-client`
  
-The variables in lines 17 through 41 are the ones that would need to be changed for each inidividual's needs. The only one that you should need to set is 'ip', and the rest should be able to be left as they are preset, and allow everything to work perfectly. Look at the comment above each variable to see what it does, and whether or not you should bother changing it. 
+The variables in lines 32 through 63 are the ones that would need to be changed for each inidividual's needs. The only one that you should need to set is 'ip', and the rest should be able to be left as they are preset, and allow everything to work perfectly. Look at the comment above each variable to see what it does, and whether or not you should bother changing it. 
 
 To use this, you have to host a server with my [iPhone hosting app](https://github.com/iandwelker/smserver). It is now publicly available; read the README on the attached repo to install it manually or download it from [Twickd Repo](repo.twickd.com)
 
@@ -53,7 +53,7 @@ If you have issues with that, check to make sure that you've installed all of th
 - The program randomly completely spazzes out, replaces every box with random characters, and tries to print something to your printer?? This is absolutely baffling and I have no idea what is causing it.
 
 ## Settings variables:
-### Any of these can be temporarily set without changing the script file by passing its name in with its value when calling the script. e.g. `python3 ./main.py --secure false` or `python3 ./main.py --colorscheme default`
+**Any of these can be temporarily set without changing the script file by passing its name in with its value when calling the script. e.g. `python3 ./main.py --secure false` or `python3 ./main.py --colorscheme default`**
 
 - `ip`: This contains the private IP of your host device, as a string. Should start with '192.168' or '10.10'. 
 - `fallback`: This is the fallback device IP to try if the host device fails.

@@ -3,7 +3,6 @@ import curses.textpad
 import re
 import websocket
 import urllib3
-import pdb
 import fileinput
 from sys import argv, platform
 from textwrap import wrap
