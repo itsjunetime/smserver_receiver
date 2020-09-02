@@ -4,6 +4,7 @@ import re
 import websocket
 import urllib3
 import fileinput
+import ssl
 from sys import argv, platform
 from textwrap import wrap
 from time import sleep
@@ -28,7 +29,7 @@ urllib3.disable_warnings()
 # [ ] Add more nice-looking colorschemes
 
 settings = {
-    'ip': '192.168.50.10',
+    'ip': '10.37.27.19',
     'fallback': '192.168.50.10',
     'port': '8741',
     'secure': True,
@@ -165,7 +166,7 @@ has_authenticated = False
 def parseArgs():
     global settings
     edit_param = ''
-    for n, i in enumerate(argv[1:]):
+    for i in argv[1:]:
         if i in ('--help', '-h'):
             print('Usage: python3 ./main.py [options]')
             print('Options (format as --option value, e.g. \'--port 80\')\n')
@@ -354,13 +355,13 @@ def getMessages(id, num = settings['default_num_messages'], offset = 0):
         try:
             att = i['attachment_file'] if 'attachment_file' in i.keys() else ''
             att_t = i['attachment_type'] if 'attachment_type' in i.keys() else ''
-            s = i['sender'] if i['sender'] != 'nil' else ''
+            s = i['sender'] if ('sender' in i.keys() and i['sender'] != 'nil') else ''
             new_m = Message(wrap(i['text'], single_width), i['date'], True if i['is_from_me'] == '1' else False, att, att_t, s)
             return_val.append(new_m)
         except:
-            updateHbox('failed to get message from index %d' % n)
+            updateHbox(f'failed to get message from index {str(n)}')
             pass
-        if settings['debug']: updateHbox('unpacking item ' + str(n + 1) + '/' + str(len(message_items)) + ', val[:3] is ' + i['text'][:3])
+        if settings['debug']: updateHbox(f'unpacking item {str(n + 1)}/{str(len(message_items))}, val[:3] is {i["text"][:3]}')
 
     return_val.reverse()
     return return_val
@@ -928,8 +929,8 @@ def newComposition():
 def onMsg(ws, msg, from_me = False):
     global current_chat_id
 
-    prefix = msg[:msg.find(':')]
-    content = msg[msg.find(':') + 1:]
+    prefix = msg.split(':')[0]
+    content = msg.split(':')[1]
 
     if settings['debug']: updateHbox('rec: prefix: ' + prefix + ', content: ' + content + ', currentid: ' + current_chat_id)
 
@@ -944,19 +945,20 @@ def onMsg(ws, msg, from_me = False):
         if content.strip() == current_chat_id:
             loadMessages(current_chat_id)
 
-        if platform in ('linux', 'freebsd', 'openbsd'): system('notify-send "you got new texts from ' + content + '!"')
-        elif 'darwin' in platform: system('osascript -e \'display notification "You received new texts from ' + content + '!" with title "New Texts"\'')
-        elif 'win32' in platform: ToastNotifier().show_toast('New texts!', 'You received new texts from ' + content + '!')
+        if not from_me:
+            req_string = 'http' + ('s' if settings['secure'] else '') + "://" + settings['ip'] + ':' + settings['port'] + '/requests?name=' + content.replace('+', '%2B')
+            name = get(req_string, verify=False, timeout=settings['timeout']).text
 
-        # if uname()[0].strip() != 'Darwin': system('notify-send "you got new texts!"')
-        # else: system('osascript -e \'display notification "You received new texts in SMServer!" with title "New Texts"\'')
+            if platform in ('linux', 'freebsd', 'openbsd'): system('notify-send "you got new texts from ' + name + '!"')
+            elif 'darwin' in platform: system('osascript -e \'display notification "You received new texts from ' + name + '!" with title "New Texts"\'')
+            elif 'win32' in platform: ToastNotifier().show_toast('New texts!', 'You received new texts from ' + name + '!')
 
         updateHbox('loaded in new chats')
 
 def recSocket():
     global socket
 
-    socket.run_forever()
+    socket.run_forever(sslopt={'cert_reqs': ssl.CERT_NONE})
 
 def mainTask():
     global past_commands
