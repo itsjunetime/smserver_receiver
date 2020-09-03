@@ -24,10 +24,6 @@ if 'win32' in platform:
 
 urllib3.disable_warnings()
 
-# TODO:
-# [ ] Set conversation to read on device when you view it on here
-# [ ] Add more nice-looking colorschemes
-
 settings = {
     'ip': '10.37.27.19',
     'fallback': '192.168.50.10',
@@ -51,7 +47,7 @@ settings = {
     'help_title': '| help |',
     'to_title': '| to: |',
     'compose_title': '| message: |',
-    'colorscheme': 'forest',
+    'colorscheme': 'soft',
     'help_inset': 5,
     'ping_interval': 10,
     'poll_exit': 0.5,
@@ -96,10 +92,11 @@ color_schemes = {
     # [0]: Selected box, [1]: My text underline, [2]: their text underline
     # [3]: Unselected box, [4]: Chat indicator color, [5]: Unread indicator color,
     # [6]: Text color, [7]: Hints box color
-    "default": [6, 39, 248, -1, 219, 39, 231, 9],
-    "outrun": [211, 165, 238, 6, 228, 205, 231, 209],
-    "coral": [202, 117, 251, 208, 207, 73, 7, 79],
-    "forest": [48, 81, 95, 36, 39, 207, 253, 217]
+    'default': [6, 39, 248, -1, 219, 39, 231, 9],
+    'outrun': [211, 165, 238, 6, 228, 205, 231, 209],
+    'coral': [202, 117, 251, 208, 207, 73, 7, 79],
+    'forest': [48, 81, 95, 36, 39, 207, 253, 217],
+    'soft': [152, 67, 247, 151, 44, 216, 188, 230]
 }
 
 if settings['ip'] == '' or settings['port'] == '':
@@ -542,7 +539,6 @@ def sendTextCmd(cmd):
         updateHbox('cancelled; text was not sent.')
         return
         
-    # vals = {'text': 'text:' + new_text, 'chat': 'chat:' + current_chat_id}
     vals = {'text': new_text, 'chat': current_chat_id}
     req_string = 'http' + ('s' if settings['secure'] else '') + '://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
     if settings['debug']: updateHbox('set req_string')
@@ -564,7 +560,6 @@ def sendFileCmd(cmd):
         return
 
     req_string = 'http' + ('s' if settings['secure'] else '') + '://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
-    # vals = {'chat': 'chat:' + current_chat_id}
     vals = {'chat': current_chat_id}
     strings = [f for f in re.split('\'|"', cmd[3:]) if len(f.strip()) != 0]
     files = []
@@ -897,7 +892,6 @@ def newComposition():
         whole_message = edit_box.edit(msg_validator)
 
     if len(whole_message) != 0 and len(whole_to) != 0:
-        # vals = {'text': 'text:' + whole_message, 'chat': 'chat:' + whole_to}
         vals = {'text': whole_message, 'chat': whole_to}
         req_string = 'http' + ('s' if settings['secure'] else '') + '://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
         updateHbox('sending...')
@@ -964,9 +958,6 @@ def mainTask():
     global past_commands
     global end_all
     while not end_all:
-        # if len(past_commands) > 0 and past_commands[0][:3] in (':s ', ':S '):
-        #     sleep(0.1) # So that the phone can have time to send the text before we reload the messages
-        #     loadMessages(current_chat_id)
 
         cmd = getTboxText()
 
