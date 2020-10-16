@@ -47,7 +47,7 @@ settings = {
     'help_title': '| help |',
     'to_title': '| to: |',
     'compose_title': '| message: |',
-    'colorscheme': 'soft',
+    'colorscheme': 'forest',
     'help_inset': 5,
     'ping_interval': 10,
     'poll_exit': 0.5,
@@ -184,7 +184,6 @@ def parseArgs():
                 edit_param = i[2:]
         else:
             if type(settings[edit_param]) == int: 
-                print('int')
                 try:
                     settings[edit_param] = int(i)
                     print(f'Set {edit_param} to {i}')
@@ -206,7 +205,6 @@ def parseArgs():
                     print(f'Cannot convert \'{i}\' to type float')
                     exit()
             else:
-                print('str')
                 if edit_param == 'colorscheme' and i not in color_schemes:
                     print(f'{i} is not an available colorscheme. Available colorschemes are:')
                     for i in color_schemes:

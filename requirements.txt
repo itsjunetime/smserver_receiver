@@ -1,0 +1,4 @@
+requests
+python-magic
+websocket-client
+urllib3
