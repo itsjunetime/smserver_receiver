@@ -25,8 +25,8 @@ if 'win32' in platform:
 urllib3.disable_warnings()
 
 settings = {
-    'ip': '10.37.27.19',
-    'fallback': '192.168.50.10',
+    'ip': '192.168.0.180',
+    'fallback': '192.168.0.180',
     'port': '8741',
     'secure': True,
     'socket_port': '8740',
@@ -47,7 +47,7 @@ settings = {
     'help_title': '| help |',
     'to_title': '| to: |',
     'compose_title': '| message: |',
-    'colorscheme': 'forest',
+    'colorscheme': 'soft',
     'help_inset': 5,
     'ping_interval': 10,
     'poll_exit': 0.5,
@@ -224,7 +224,7 @@ def getChats(num = settings['default_num_chats'], offset = 0):
     if not has_authenticated:
         authenticate()
 
-    req_string = 'http' + ('s' if settings['secure'] else '') + '://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?chat=0&num_chats=' + str(num) + "&chats_offset=" + str(offset)
+    req_string = f"http{'s' if settings['secure'] else ''}://{settings['ip']}:{settings['port']}/{settings['req']}?chat=0&num_chats={str(num)}&chats_offset={str(offset)}"
 
     num_requested_chats = num if offset == 0 else num_requested_chats + num
 
@@ -253,7 +253,7 @@ def getChats(num = settings['default_num_chats'], offset = 0):
 
 def authenticate():
     global has_authenticated
-    auth_string = 'http' + ('s' if settings['secure'] else '') + '://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?password=' + settings['pass']
+    auth_string = f"http{'s' if settings['secure'] else ''}://{settings['ip']}:{settings['port']}/{settings['req']}?password={settings['pass']}"
     try:
         response = get(auth_string, timeout=settings['timeout'], verify=False)
     except:
@@ -338,7 +338,7 @@ def getMessages(id, num = settings['default_num_messages'], offset = 0):
     global single_width
     id = id.replace('+', '%2B')
 
-    req_string = 'http' + ('s' if settings['secure'] else '') + '://' + settings['ip'] + ':' + settings['port'] + '/' + settings['req'] + '?person=' + id + '&num=' + str(num) + '&offset=' + str(offset)
+    req_string = f"http{'s' if settings['secure'] else ''}://{settings['ip']}:{settings['port']}/{settings['req']}?person={id}&num={str(num)}&offset={str(offset)}"
     if settings['debug']: updateHbox('req: ' + req_string)
     new_messages = get(req_string, timeout=settings['timeout'], verify=False)
     if settings['debug']: updateHbox('got new_messages')
@@ -538,7 +538,7 @@ def sendTextCmd(cmd):
         return
         
     vals = {'text': new_text, 'chat': current_chat_id}
-    req_string = 'http' + ('s' if settings['secure'] else '') + '://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
+    req_string = f"http{'s' if settings['secure'] else ''}://{settings['ip']}:{settings['port']}/{settings['post']}"
     if settings['debug']: updateHbox('set req_string')
     try:
         post(req_string, files={"attachments": (None, '0')}, data=vals, timeout=settings['timeout'], verify=False) # You have to put some value for files or the server will crash; idk why tho
@@ -557,7 +557,7 @@ def sendFileCmd(cmd):
         updateHbox('you have not selected a conversation. please do so before attempting to send texts')
         return
 
-    req_string = 'http' + ('s' if settings['secure'] else '') + '://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
+    req_string = f"http{'s' if settings['secure'] else ''}://{settings['ip']}:{settings['port']}/{settings['post']}"
     vals = {'chat': current_chat_id}
     strings = [f for f in re.split('\'|"', cmd[3:]) if len(f.strip()) != 0]
     files = []
@@ -805,7 +805,7 @@ def openAttachment(att_num):
     if len(displayed_attachments) <= int(att_num):
         updateHbox('attachment ' + str(att_num) + ' does not exist.')
         return
-    http_string = 'http://' + settings['ip'] + ':' + settings['port'] + '/attachments?path=' + str(displayed_attachments[int(att_num)]).replace(' ', '%20')
+    http_string = f'http{"s" if settings["secure"] else ""}://{settings["ip"]}:{settings["port"]}/data?path={str(displayed_attachments[int(att_num)]).replace(" ", "%20")}'
     
     if 'darwin' in platform:
         check_call(['open', http_string], stdout=DEVNULL, stderr=STDOUT)
@@ -891,7 +891,7 @@ def newComposition():
 
     if len(whole_message) != 0 and len(whole_to) != 0:
         vals = {'text': whole_message, 'chat': whole_to}
-        req_string = 'http' + ('s' if settings['secure'] else '') + '://' + settings['ip'] + ':' + settings['port'] + '/' + settings['post']
+        req_string = f"http{'s' if settings['secure'] else ''}://{settings['ip']}:{settings['port']}/{settings['post']}"
         updateHbox('sending...')
         try:
             post(req_string, files={"attachments": (None, '0')}, data=vals, timeout=settings['timeout'], verify=False)
@@ -938,7 +938,7 @@ def onMsg(ws, msg, from_me = False):
             loadMessages(current_chat_id)
 
         if not from_me:
-            req_string = 'http' + ('s' if settings['secure'] else '') + "://" + settings['ip'] + ':' + settings['port'] + '/requests?name=' + content.replace('+', '%2B')
+            req_string = f"http{'s' if settings['secure'] else ''}://{settings['ip']}:{settings['port']}/requests?name={content}"
             name = get(req_string, verify=False, timeout=settings['timeout']).text
 
             if platform in ('linux', 'freebsd', 'openbsd'): system('notify-send "you got new texts from ' + name + '!"')
