@@ -5,6 +5,7 @@ import websocket
 import urllib3
 import fileinput
 import ssl
+import json
 from sys import argv, platform
 from textwrap import wrap
 from time import sleep
@@ -47,7 +48,7 @@ settings = {
     'help_title': '| help |',
     'to_title': '| to: |',
     'compose_title': '| message: |',
-    'colorscheme': 'soft',
+    'colorscheme': 'forest',
     'help_inset': 5,
     'ping_interval': 10,
     'poll_exit': 0.5,
@@ -173,7 +174,7 @@ def parseArgs():
                 t = str(type(settings[i])).split("'")[1]
                 v = ("'" + settings[i] + "'") if type(settings[i]) == str else str(settings[i])
                 print('\t' + i + ' '*(l-len(i)) + t + '\t' + v)
-            
+
             exit()
 
         if edit_param == '':
@@ -212,7 +213,7 @@ def parseArgs():
                     exit()
                 print(f'Set {edit_param} to {i}')
                 settings[edit_param] = i
-            
+
             edit_param = ''
 
 def getDate(ts):
@@ -246,9 +247,7 @@ def getChats(num = settings['default_num_chats'], offset = 0):
     for i in chat_items:
         new_chat = Chat(i['chat_identifier'], i['display_name'], False if i['has_unread'] == "false" else True)
         return_val.append(new_chat)
-        if settings['debug']: print("new chat:")
-        if settings['debug']: print(new_chat)
-        
+
     return return_val
 
 def authenticate():
@@ -321,7 +320,7 @@ def selectChat(cmd):
     except:
         updateHbox('you input the index incorrectly. please try again.')
         return
-    
+
     if num >= len(chats):
         updateHbox('that index is out of range. please load more chats or try again')
         return
@@ -475,7 +474,7 @@ def getTboxText():
     whole_string = ''
     right_offset = 0
     past_command_offset = -1
-    
+
     # This whole section is a nightmare. But it seems to work...?
     while True:
         ch = tbox.getch(1, min(1 + len(whole_string) - right_offset, t_width - 2) if len(whole_string) < t_width - 2 else t_width - 2 - right_offset)
@@ -514,12 +513,12 @@ def getTboxText():
                 whole_string = whole_string[:len(whole_string) - right_offset] + chr(ch) + whole_string[len(whole_string) - right_offset:]
             else:
                 whole_string += chr(ch)
-            
+
             if len(whole_string) < t_width - 2:
                 tbox.addstr(1, 1, whole_string)
             else:
                 tbox.addstr(1, 1, whole_string[len(whole_string) - t_width + 3:])
-                
+
     if settings['debug']: updateHbox('returning whole_string from tbox')
     return whole_string
 
@@ -536,7 +535,7 @@ def sendTextCmd(cmd):
     if new_text == '':
         updateHbox('cancelled; text was not sent.')
         return
-        
+
     vals = {'text': new_text, 'chat': current_chat_id}
     req_string = f"http{'s' if settings['secure'] else ''}://{settings['ip']}:{settings['port']}/{settings['post']}"
     if settings['debug']: updateHbox('set req_string')
@@ -547,7 +546,7 @@ def sendTextCmd(cmd):
         updateHbox('failed to send text :(')
 
     sleep(0.1)
-    onMsg(None, 'text:' + current_chat_id, from_me = True)
+    onMsg(None, 'text:{"text": {"text": "' + new_text + '", "chat_identifier": "' + current_chat_id + '" }}', from_me = True)
 
 def sendFileCmd(cmd):
     global current_chat_id
@@ -601,7 +600,7 @@ def getTextText():
             return whole_string
         elif ch in (127, curses.KEY_BACKSPACE):
             whole_string = whole_string[:len(whole_string) - right_offset - 1] + whole_string[len(whole_string) - right_offset:] # This should work even when right_offset == 0
-                
+
             tbox.addstr(1, 1, str(whole_string + ' '*max((t_width - len(whole_string) - 3), 0))[max((len(whole_string) - t_width + 3), 0):])
 
         elif ch in (curses.KEY_LEFT,):
@@ -690,7 +689,7 @@ def displayHelp():
     help_offset = 0
 
     help_messages_wrapped = [[]]
-    
+
     for n, l in enumerate(help_message):
         help_messages_wrapped.append(wrap(l, help_width - 2) if n % 2 == 1 and not n == 0 else wrap(l, help_width - 2 - settings['help_inset']))
 
@@ -727,7 +726,7 @@ def displayHelp():
         elif chr(c) in ('q', 'Q'):
             break
         if settings['debug']: updateHbox('scrolling, rows is ' + str(text_rows) + ', height is ' + str(help_height) + ', offset is ' + str(help_offset))
-    
+
     hbox_wrapper.clear()
     hbox_wrapper.refresh()
     help_box.clear()
@@ -776,7 +775,7 @@ def setVar(cmd):
     else:
         if settings['debug']: updateHbox('type is str')
         settings[var] = val
-    
+
     if type(oldval) == str:
         val = "'" + val + "'"
         oldval = "'" + oldval + "'"
@@ -785,7 +784,7 @@ def setVar(cmd):
 
     if platform in ('linux', 'freebsd', 'openbsd'):
         sed_string = 'sed -i "s/\'' + var + '\': ' + str(oldval) + '/\'' + var + '\': ' + str(val) + '/" ' + path.realpath(__file__)
-        system(sed_string)
+        system(sed_string) # yeah I know os.system is bad but this is a silent, non-crucial operation, so I'm ok with it.
     elif platform == 'darwin':
         sed_string = 'sed -i \'\' -e "s+\'' + var + '\': ' + str(oldval) + '+\'' + var + '\': ' + str(val) + '+" ' + path.realpath(__file__)
         system(sed_string)
@@ -806,17 +805,17 @@ def openAttachment(att_num):
         updateHbox('attachment ' + str(att_num) + ' does not exist.')
         return
     http_string = f'http{"s" if settings["secure"] else ""}://{settings["ip"]}:{settings["port"]}/data?path={str(displayed_attachments[int(att_num)]).replace(" ", "%20")}'
-    
+
     if 'darwin' in platform:
         check_call(['open', http_string], stdout=DEVNULL, stderr=STDOUT)
     elif platform in ('linux', 'freebsd', 'openbsd'):
         check_call(['xdg-open', http_string], stdout=DEVNULL, stderr=STDOUT)
     elif 'win32' in platform:
         system('explorer "' + http_string + '"')
-    
+
 def newComposition():
     global displaying_new
-    
+
     to_height = 3
     to_width = int(cols * 0.7)
 
@@ -885,7 +884,7 @@ def newComposition():
                 to_box.addstr(1, 1, whole_to)
             else:
                 tbox.addstr(1, 1, whole_to[len(whole_to) - t_width + 3:])
-                
+
     if len(whole_to) != 0:
         whole_message = edit_box.edit(msg_validator)
 
@@ -922,23 +921,25 @@ def onMsg(ws, msg, from_me = False):
     global current_chat_id
 
     prefix = msg.split(':')[0]
-    content = msg.split(':')[1]
+    content = ':'.join(msg.split(':')[1:])
 
-    if settings['debug']: updateHbox('rec: prefix: ' + prefix + ', content: ' + content + ', currentid: ' + current_chat_id)
+    if settings['debug']: updateHbox('rec: prefix: ' + prefix + ', content[:8] ' + content[:8] + ', currentid: ' + current_chat_id)
 
     if prefix == 'text':
+        text_json = json.loads(content)['text']
+        from_chat = text_json['chat_identifier']
         if content != chats[0].chat_id:
-            updateHbox('does not equal. ctn: ' + content + ', 0: ' + chats[0].chat_id)
+            updateHbox('does not equal. ctn[:8]: ' + content[:8] + ', 0: ' + chats[0].chat_id)
             reloadChats()
         elif not from_me:
             cbox.addstr(settings['chat_vertical_offset'], chat_offset - 2, '•', curses.color_pair(5))
             refreshCBox()
 
-        if content.strip() == current_chat_id:
+        if from_chat == current_chat_id:
             loadMessages(current_chat_id)
 
         if not from_me:
-            req_string = f"http{'s' if settings['secure'] else ''}://{settings['ip']}:{settings['port']}/requests?name={content}"
+            req_string = f"http{'s' if settings['secure'] else ''}://{settings['ip']}:{settings['port']}/requests?name={from_chat}"
             name = get(req_string, verify=False, timeout=settings['timeout']).text
 
             if platform in ('linux', 'freebsd', 'openbsd'): system('notify-send "you got new texts from ' + name + '!"')
@@ -993,10 +994,10 @@ def mainTask():
 
     updateHbox('exiting...')
     end_all = True
-        
+
 def setupAsync():
     global end_all
-    
+
     executor = ThreadPoolExecutor(max_workers=2)
 
     executor.submit(mainTask)
