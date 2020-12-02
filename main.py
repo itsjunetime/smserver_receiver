@@ -57,6 +57,7 @@ settings = {
     'default_num_chats': 30,
     'max_past_commands': 10,
     'reload_on_change': False,
+    'notifications': True,
     'debug': False,
 }
 
@@ -179,12 +180,12 @@ def parseArgs():
 
         if edit_param == '':
             if i[:2] != '--' or i[2:] not in settings:
-                print(f'Invalid option {i}') 
+                print(f'Invalid option {i}')
                 exit()
             else:
                 edit_param = i[2:]
         else:
-            if type(settings[edit_param]) == int: 
+            if type(settings[edit_param]) == int:
                 try:
                     settings[edit_param] = int(i)
                     print(f'Set {edit_param} to {i}')
@@ -482,7 +483,7 @@ def getTboxText():
             scrollDown()
         elif (chr(ch) in ('k', 'K', '^[A') and len(whole_string) == 0):
             scrollUp()
-        elif (chr(ch) in ('l', 'L', 'h', 'H') and len(whole_string) == 0): 
+        elif (chr(ch) in ('l', 'L', 'h', 'H') and len(whole_string) == 0):
             switchSelected()
         elif ch in (curses.KEY_UP,) and len(past_commands) > 0:
             past_command_offset += 1 if past_command_offset < len(past_commands) - 1 else 0
@@ -508,7 +509,7 @@ def getTboxText():
             right_offset -= 1 if right_offset > 0 else 0
         elif ch in (27, curses.KEY_CANCEL,):
             return ''
-        elif len(chr(ch)) == 1: 
+        elif len(chr(ch)) == 1:
             if right_offset != 0:
                 whole_string = whole_string[:len(whole_string) - right_offset] + chr(ch) + whole_string[len(whole_string) - right_offset:]
             else:
@@ -542,11 +543,8 @@ def sendTextCmd(cmd):
     try:
         post(req_string, files={"attachments": (None, '0')}, data=vals, timeout=settings['timeout'], verify=False) # You have to put some value for files or the server will crash; idk why tho
         updateHbox('text sent!')
-    except: 
+    except:
         updateHbox('failed to send text :(')
-
-    sleep(0.1)
-    onMsg(None, 'text:{"text": {"text": "' + new_text + '", "chat_identifier": "' + current_chat_id + '" }}', from_me = True)
 
 def sendFileCmd(cmd):
     global current_chat_id
@@ -767,7 +765,7 @@ def setVar(cmd):
         if settings['debug']: updateHbox('type is int')
         settings[var] = int(val)
     elif type(settings[var]) == float:
-        if settings['debug']: updateHbox('type is float') 
+        if settings['debug']: updateHbox('type is float')
         settings[var] = float(val)
     elif type(settings[var]) == bool:
         if settings['debug']: updateHbox('type is bool')
@@ -917,7 +915,7 @@ def newComposition():
     if sent:
         reloadChats()
 
-def onMsg(ws, msg, from_me = False):
+def onMsg(ws, msg):
     global current_chat_id
 
     prefix = msg.split(':')[0]
@@ -928,23 +926,24 @@ def onMsg(ws, msg, from_me = False):
     if prefix == 'text':
         text_json = json.loads(content)['text']
         from_chat = text_json['chat_identifier']
-        if content != chats[0].chat_id:
-            updateHbox('does not equal. ctn[:8]: ' + content[:8] + ', 0: ' + chats[0].chat_id)
+        from_me = text_json['is_from_me'] == '1'
+
+        if from_chat != chats[0].chat_id:
             reloadChats()
-        elif not from_me:
+        elif not from_me and from_chat != current_chat_id:
             cbox.addstr(settings['chat_vertical_offset'], chat_offset - 2, '•', curses.color_pair(5))
             refreshCBox()
 
         if from_chat == current_chat_id:
             loadMessages(current_chat_id)
 
-        if not from_me:
+        if not from_me and settings['notifications']:
             req_string = f"http{'s' if settings['secure'] else ''}://{settings['ip']}:{settings['port']}/requests?name={from_chat}"
             name = get(req_string, verify=False, timeout=settings['timeout']).text
 
-            if platform in ('linux', 'freebsd', 'openbsd'): system('notify-send "you got new texts from ' + name + '!"')
-            elif 'darwin' in platform: system('osascript -e \'display notification "You received new texts from ' + name + '!" with title "New Texts"\'')
-            elif 'win32' in platform: ToastNotifier().show_toast('New texts!', 'You received new texts from ' + name + '!')
+            if platform in ('linux', 'freebsd', 'openbsd'): system(f'notify-send "you got new texts from {name}!"')
+            elif 'darwin' in platform: system(f'osascript -e \'display notification "{text_json["text"]}" with title "{name}"\'')
+            elif 'win32' in platform: ToastNotifier().show_toast(name, text_json["text"])
 
         updateHbox('loaded in new chats')
 
@@ -1015,14 +1014,14 @@ parseArgs()
 
 print('Loading ...')
 
-try:          
+try:
     chats = getChats(settings['default_num_chats'])
 except:
     print('Original ip failed, trying fallback...')
     try:
         settings['ip'] = settings['fallback']
         chats = getChats(settings['default_num_chats'])
-    except: 
+    except:
         print('Could not authenticate. Check to make sure your host server is running.')
         exit()
 
@@ -1047,7 +1046,7 @@ h_y = rows - h_height
 t_height = 3
 t_width = h_width
 t_x = 0
-t_y = rows - t_height - h_height 
+t_y = rows - t_height - h_height
 
 min_chat_width = 24
 chats_width = int(cols * 0.3) if cols * 0.3 > min_chat_width else min_chat_width
