@@ -11,8 +11,8 @@ Python ncurses-based tui client for SMServer
  - magic -- `pip3 install python-magic`
  - websocket-client -- `pip3 install websocket-client`
  - urllib3 -- `pip3 install urllib3`
- 
-The variables in lines 28 through 62 are the ones that would need to be changed for each inidividual's needs. The only one that you should need to set is 'ip', and the rest should be able to be left as they are preset, and allow everything to work perfectly. Look at the comment above each variable to see what it does, and whether or not you should bother changing it. 
+
+The variables in lines 28 through 62 are the ones that would need to be changed for each inidividual's needs. The only one that you should need to set is 'ip', and the rest should be able to be left as they are preset, and allow everything to work perfectly. Look at the comment above each variable to see what it does, and whether or not you should bother changing it.
 
 To use this, you have to host a server with my [iPhone hosting app](https://github.com/iandwelker/smserver). It is now publicly available; read the README on the attached repo to install it manually or download it from [Twickd Repo](repo.twickd.com)
 
@@ -20,7 +20,7 @@ This totally supports GNU/Linux & MacOS, and mostly supports windows. Everything
 
 ## To run
 
-1. First, get a copy of the [iOS Version of SMServer](https://github.com/iandwelker/smserver) and start that running. 
+1. First, get a copy of the [iOS Version of SMServer](https://github.com/iandwelker/smserver) and start that running.
 2. (Optional) Set your host device's private ip address in the 'ip' variable of the settings dictionary in main.py
 3. Navigate to the folder where main.py resides, and, if you set the host device's ip address in step 2, run `python3 ./main.py` Else, run `python3 ./main.py --ip <host device IP>`
 
@@ -45,8 +45,8 @@ If you have issues with that, check to make sure that you've installed all of th
 ## Debugging
 - To debug, set 'debug' to True on line 63 of `main.py`
 - Run the program again, and check what was the last thing to flash on the screen before the program either crashed or froze.
-- Cross-reference the printed text with the code (find where in the code that command is printed), and try to fix it from there if you know python/curses. 
-- If you don't want to mess with anything, submit an issue report on github with the last message that was printed, and what your settings array looks like. 
+- Cross-reference the printed text with the code (find where in the code that command is printed), and try to fix it from there if you know python/curses.
+- If you don't want to mess with anything, submit an issue report on github with the last message that was printed, and what your settings array looks like.
 
 ### Acknowledged Issues
 - Messages with an attachment and no text have an extra blank line underneath them
@@ -55,7 +55,7 @@ If you have issues with that, check to make sure that you've installed all of th
 ## Settings variables:
 **Any of these can be temporarily set without changing the script file by passing its name in with its value when calling the script. e.g. `python3 ./main.py --secure false` or `python3 ./main.py --colorscheme default`**
 
-- `ip`: This contains the private IP of your host device, as a string. Should start with '192.168' or '10.10'. 
+- `ip`: This contains the private IP of your host device, as a string. Should start with '192.168' or '10.10'.
 - `fallback`: This is the fallback device IP to try if the host device fails.
 - `port`: This should default to 8741, and should be the port over which your host device communicates.
 - `secure`: If you have SSL enabled on SMServer, set this to true. If you have SSL disabled, set this to false.
@@ -67,7 +67,7 @@ If you have issues with that, check to make sure that you've installed all of th
 - `current_chat_indicator`: The character that will sit by the side of the currently selected conversation.
 - `my_chat_end`: The characters that will reside on the end of the underline of text messages from you. The length can be changed, but I wouldn't recommend making it too long, since it may look weird on short texts
 - `their_chat_end`: Same as my_chat_end, but for texts to you.
-- `chat_underline`: the character that will underline each text. Should only be one character, or things will be messed up. 
+- `chat_underline`: the character that will underline each text. Should only be one character, or things will be messed up.
 - `chat_vertical_offset`: This will the top inside padding for the chats box (the one on the far left)
 - `title_offset`: The left padding of each of the box titles
 - `x_title`: The title for $x box

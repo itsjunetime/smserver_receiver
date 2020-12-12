@@ -370,9 +370,9 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
 	for n, m in enumerate(messages):
 		total_messages_height += len(m.content)
 		total_messages_height += len(m.attachments) # + 1
-		total_messages_height += 1 if n == len(messages) - 1 or m.sender != messages[n + 1].sender or m.from_me != messages[n + 1] else 2
 		total_messages_height += 2 if n == 0 or m.timestamp - messages[n - 1].timestamp >= 3600 else 0
 		total_messages_height += 1 if m.sender != '' and n != 0 and m.sender != messages[n - 1].sender else 0
+		total_messages_height += 2 # no matter what, apparently
 
 	total_messages_height += 1 # ' cause :)
 
@@ -432,11 +432,10 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
 			mbox.addstr(top_offset, left_padding if m.from_me else left_padding + 1, l, curses.color_pair(7))
 			top_offset += 1
 
-		if n == len(messages) - 1 or (m.sender != '' and m.sender == messages[n + 1].sender) or m.from_me == messages[n + 1].from_me: 
+		if n == len(messages) - 1 or (m.sender != '' and m.sender == messages[n + 1].sender) or m.from_me == messages[n + 1].from_me:
 			underline = settings['chat_underline']*len(underline)
 
 		if settings['debug']: updateHbox(f'settings underline on item {n+1}')
-		print(f'to: {top_offset}, tw: {text_width}, tmh: {total_messages_height}')
 		if text_width > 0: mbox.addstr(top_offset, left_padding, underline, curses.color_pair(2) if m.from_me else curses.color_pair(3))
 		top_offset += 2 if n != len(messages) - 1 and m.sender != messages[n + 1].sender else 1
 
