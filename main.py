@@ -6,7 +6,6 @@ import urllib3
 import fileinput
 import ssl
 import json
-import pdb
 from sys import argv, platform
 from textwrap import wrap
 from time import sleep
@@ -282,7 +281,7 @@ def loadInChats():
 			cbox.addstr(vert_pad, chat_offset - 2, '•',curses.color_pair(5)) if c.has_unread else 0
 			cbox.addstr(vert_pad, chat_offset, d_name, curses.color_pair(7))
 		except curses.error:
-			if settings['debug']: updateHbox('failed to add chat ' + str(n) + ' to box')
+			if settings['debug']: updateHbox(f'failed to add chat {n} to box')
 
 	updateHbox('chats loaded in')
 	refreshCBox()
@@ -321,7 +320,7 @@ def selectChat(cmd):
 		updateHbox('that index is out of range. please load more chats or try again')
 		return
 
-	if settings['debug']: updateHbox('Selected chat with ' + cmd)
+	if settings['debug']: updateHbox(f'Selected chat with {cmd}')
 	cbox.addstr((current_chat_index * 2) + settings['chat_vertical_offset'], chat_offset - 2, ' ')
 	cbox.addstr((num * 2) + settings['chat_vertical_offset'], chat_offset - 2, settings['current_chat_indicator'], curses.color_pair(5))
 	refreshCBox(cbox_offset)
@@ -334,7 +333,7 @@ def getMessages(id, num = settings['default_num_messages'], offset = 0):
 	id = id.replace('+', '%2B')
 
 	req_string = f"http{'s' if settings['secure'] else ''}://{settings['ip']}:{settings['port']}/{settings['req']}?person={id}&num={str(num)}&offset={str(offset)}"
-	if settings['debug']: updateHbox('req: ' + req_string)
+	if settings['debug']: updateHbox(f'req: {req_string}')
 	new_messages = get(req_string, timeout=settings['timeout'], verify=False)
 	new_json = new_messages.json()
 	message_items = new_json['texts']
@@ -388,7 +387,7 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
 	mbox_wrapper.attron(curses.color_pair(4))
 	mbox_wrapper.refresh()
 
-	if settings['debug']: updateHbox('set mw attr, tmh:' + str(total_messages_height) + ', mw:' + str(messages_width))
+	if settings['debug']: updateHbox(f'set mw attr, tmh:{total_messages_height}, mw:{messages_width}')
 	mbox.resize(total_messages_height, messages_width - 2)
 
 	for n, m in enumerate(messages):
@@ -406,13 +405,13 @@ def loadMessages(id, num = settings['default_num_messages'], offset = 0):
 		if settings['debug']: updateHbox(f'set first section of message {n+1}, to = {top_offset}, h = {total_messages_height}')
 
 		if n == 0 or m.timestamp - messages[n - 1].timestamp >= 3600:
-			if settings['debug']: updateHbox('checking timestamps on item ' + str(n + 1))
+			if settings['debug']: updateHbox(f'checking timestamps on item {n+1}')
 			time_string = getDate(m.timestamp)
 			mbox.addstr(top_offset, int((messages_width - 2 - len(time_string)) / 2), time_string, curses.color_pair(7))
 			top_offset += 2
 
 		if m.from_me:
-			if settings['debug']: updateHbox('entered if_from_me for item ' + str(n + 1))
+			if settings['debug']: updateHbox(f'entered if_from_me for item {n+1}')
 			left_padding = messages_width - 3 - text_width # I feel like it shouldn't be 3 but ok
 			underline = settings['chat_underline']*(text_width - len(settings['my_chat_end'])) + settings['my_chat_end']
 
@@ -475,12 +474,12 @@ def getTboxText():
 		elif ch in (curses.KEY_UP,) and len(past_commands) > 0:
 			past_command_offset += 1 if past_command_offset < len(past_commands) - 1 else 0
 			whole_string = past_commands[min(past_command_offset, settings['max_past_commands'] - 1)][:t_width - 2]
-			if settings['debug']: updateHbox('up; set whole_string, pco is ' + str(past_command_offset))
+			if settings['debug']: updateHbox(f'up; set whole_string, pco is {past_command_offset}')
 			tbox.addstr(1, 1, whole_string + ' '*(t_width - 2 - len(whole_string)))
 		elif ch in (curses.KEY_DOWN,):
 			past_command_offset -= 1 if past_command_offset >= 0 else 0
 			whole_string = past_commands[past_command_offset][:t_width - 2] if past_command_offset != -1 else ''
-			if settings['debug']: updateHbox('down; set whole_string, pco is ' + str(past_command_offset))
+			if settings['debug']: updateHbox(f'down; set whole_string, pco is {past_command_offset}')
 			tbox.addstr(1, 1, whole_string + ' '*(t_width - 2 - len(whole_string)))
 		elif ch in (10, curses.KEY_ENTER):
 			return whole_string
@@ -633,7 +632,7 @@ def scrollUp():
 	global messages
 
 	if selected_box == 'm':
-		if settings['debug']: updateHbox('scrolling m box, offset is ' + str(mbox_offset) + ', total height is ' + str(total_messages_height))
+		if settings['debug']: updateHbox(f'scrolling m box, offset is {mbox_offset}, total height is {total_messages_height}')
 		if mbox_offset < total_messages_height - messages_height:
 			mbox_offset += settings['messages_scroll_factor']
 		elif len(messages) >= settings['default_num_messages']:
@@ -649,7 +648,7 @@ def scrollDown():
 	global cbox_offset
 	global chats
 	if selected_box == 'm':
-		if settings['debug']: updateHbox('scrolling m down, offset is ' + str(mbox_offset))
+		if settings['debug']: updateHbox(f'scrolling m down, offset is {mbox_offset}')
 		mbox_offset -= settings['messages_scroll_factor'] if mbox_offset > 0 else mbox_offset
 		refreshMBox(mbox_offset)
 	else:
@@ -710,7 +709,7 @@ def displayHelp():
 			help_box.refresh(help_offset, 0, help_y + 1, help_x + 1, help_y + help_height - 2, help_x + help_width - 2)
 		elif chr(c) in ('q', 'Q'):
 			break
-		if settings['debug']: updateHbox('scrolling, rows is ' + str(text_rows) + ', height is ' + str(help_height) + ', offset is ' + str(help_offset))
+		if settings['debug']: updateHbox(f'scrolling, rows is {text_rows}, height is {help_height}, offset is {help_offset}')
 
 	hbox_wrapper.clear()
 	hbox_wrapper.refresh()
@@ -734,18 +733,18 @@ def setVar(cmd):
 	oldval = settings[var]
 
 	if var == 'colorscheme' and val not in color_schemes.keys():
-		updateHbox(val + ' is not an existing colorscheme.')
+		updateHbox(f'{val} is not an existing colorscheme.')
 		return
 
 	if var not in settings:
-		updateHbox('variable (' + var + ') not found.')
+		updateHbox(f'variable ({var}) not found.')
 		return
 
 	if type(settings[var]) == int and not val.isdigit():
-		updateHbox('bad input type for ' + var + ' (must be int)')
+		updateHbox(f'bad input type for {var} (must be int)')
 		return
 	elif type(settings[var]) == bool and val not in ('False', 'True', 'false', 'true'):
-		updateHbox('bad input type for ' + var + ' (must be bool)')
+		updateHbox(f'bad input type for {var} (must be bool)')
 		return
 
 	if type(settings[var]) == int:
@@ -767,14 +766,16 @@ def setVar(cmd):
 	elif type(oldval) == bool:
 		val = 'True' if val in ('true', 'True') else 'False'
 
+	ap = "'" # bear with me
+
 	if platform in ('linux', 'freebsd', 'openbsd'):
-		sed_string = 'sed -i "s/\'' + var + '\': ' + str(oldval) + '/\'' + var + '\': ' + str(val) + '/" ' + path.realpath(__file__)
+		sed_string = f'sed -i "s/{ap}{var}{ap}: {oldval}/{ap}{var}{ap}: {val}/" {path.realpath(__file__)}'
 		system(sed_string) # yeah I know os.system is bad but this is a silent, non-crucial operation, so I'm ok with it.
 	elif platform == 'darwin':
-		sed_string = 'sed -i \'\' -e "s+\'' + var + '\': ' + str(oldval) + '+\'' + var + '\': ' + str(val) + '+" ' + path.realpath(__file__)
+		sed_string = f'sed -i {ap}{ap} -e "s+{ap}{var}{ap}: {oldval}+{ap}{var}{ap}: {val}+" {path.realpath(__file__)}'
 		system(sed_string)
 
-	updateHbox('updated ' + var + ' to ' + val)
+	updateHbox(f'updated {var} to {val}')
 
 def showVar(cmd):
 	var = cmd[cmd.find(' ') + 1:]
@@ -782,12 +783,12 @@ def showVar(cmd):
 	if var not in settings:
 		updateHbox('variable not found.')
 	else:
-		updateHbox('current value: ' + str(settings[var]))
+		updateHbox(f'current value: {settings[var]}')
 
 def openAttachment(att_num):
 	global displayed_attachments
 	if len(displayed_attachments) <= int(att_num):
-		updateHbox('attachment ' + str(att_num) + ' does not exist.')
+		updateHbox(f'attachment {att_num} does not exist.')
 		return
 	http_string = f'http{"s" if settings["secure"] else ""}://{settings["ip"]}:{settings["port"]}/data?path={displayed_attachments[int(att_num)].replace(" ", "%20")}'
 
@@ -796,7 +797,7 @@ def openAttachment(att_num):
 	elif platform in ('linux', 'freebsd', 'openbsd'):
 		check_call(['xdg-open', http_string], stdout=DEVNULL, stderr=STDOUT)
 	elif 'win32' in platform:
-		system('explorer "' + http_string + '"')
+		system(f'explorer "{http_string}"')
 
 def newComposition():
 	global displaying_new
@@ -908,7 +909,7 @@ def onMsg(ws, msg):
 	prefix = msg.split(':')[0]
 	content = ':'.join(msg.split(':')[1:])
 
-	if settings['debug']: updateHbox('rec: prefix: ' + prefix + ', content[:8] ' + content[:8] + ', currentid: ' + current_chat_id)
+	if settings['debug']: updateHbox(f'rec: prefix: {prefix}, content[:8] {content[:8]}, currentid: {current_chat_id}')
 
 	if prefix == 'text':
 		text_json = json.loads(content)['text']
@@ -1087,7 +1088,7 @@ updateHbox('type \':h\' to get help!')
 
 screen.refresh()
 
-url='ws' + ('s' if settings['secure'] else '') + '://' + settings['ip'] + ':' + settings['socket_port']
+url = f'ws{"s" if settings["secure"] else ""}://{settings["ip"]}:{settings["socket_port"]}'
 socket = websocket.WebSocketApp(url, on_message = onMsg)
 
 setupAsync()

@@ -1,9 +1,9 @@
-# Receiver app for SMServer
+# SMCurser
 
 ![What it looks like](smserver_receiver.png)
-<span style="font-weight: 200; font-size: 12px;">SMServer_receiver running on Konsole</span>
+<span style="font-weight: 200; font-size: 12px;">SMCurser running on Konsole</span>
 
-Unnamed as of yet. Maybe I'll just keep it like this, idk. If you have a good name, let me know, 'cause I need one. 
+Python ncurses-based tui client for SMServer
 
 ### Requires:
  - python3
@@ -12,17 +12,17 @@ Unnamed as of yet. Maybe I'll just keep it like this, idk. If you have a good na
  - websocket-client -- `pip3 install websocket-client`
  - urllib3 -- `pip3 install urllib3`
  
-The variables in lines 32 through 63 are the ones that would need to be changed for each inidividual's needs. The only one that you should need to set is 'ip', and the rest should be able to be left as they are preset, and allow everything to work perfectly. Look at the comment above each variable to see what it does, and whether or not you should bother changing it. 
+The variables in lines 28 through 62 are the ones that would need to be changed for each inidividual's needs. The only one that you should need to set is 'ip', and the rest should be able to be left as they are preset, and allow everything to work perfectly. Look at the comment above each variable to see what it does, and whether or not you should bother changing it. 
 
 To use this, you have to host a server with my [iPhone hosting app](https://github.com/iandwelker/smserver). It is now publicly available; read the README on the attached repo to install it manually or download it from [Twickd Repo](repo.twickd.com)
 
-This mostly supports windows. Everything should work fine, except for persistence. On Mac & Linux, when changing a variable in-app, the script file is edited to set the new value, using `sed`. However, as Windows does not have coreutils (and I couldn't get this to work with vanilla python), it does not currently support persistent settings.
+This totally supports GNU/Linux & MacOS, and mostly supports windows. Everything should work fine, except for persistence. On Mac & Linux, when changing a variable in-app, the script file is edited to set the new value, using `sed`. However, as Windows does not have coreutils (and I couldn't get this to work with vanilla python), it does not currently support persistent settings.
 
 ## To run
 
 1. First, get a copy of the [iOS Version of SMServer](https://github.com/iandwelker/smserver) and start that running. 
-2. Set your host device's private ip address in the 'ip' variable of the settings dictionary in main.py 
-3. Navigate to the folder where main.py resides, and run `python3 ./main.py`, 
+2. (Optional) Set your host device's private ip address in the 'ip' variable of the settings dictionary in main.py
+3. Navigate to the folder where main.py resides, and, if you set the host device's ip address in step 2, run `python3 ./main.py` Else, run `python3 ./main.py --ip <host device IP>`
 
 If you have issues with that, check to make sure that you've installed all of the above listed dependencies (just install them with pip3, e.g. `pip3 install curses`). If you're still having issues, continue to 'debugging' down below.
 
@@ -78,4 +78,6 @@ If you have issues with that, check to make sure that you've installed all of th
 - `default_num_messages`: How many messages you want to load when you first select each conversation
 - `default_num_chats`: How many conversations you want to load for the left chat box when you first launch the program
 - `debug`: Makes everything really slow and flashes countless debug messages basically any time you do anything. Don't set to True unless you're actually debugging.
+- `max_past_commands`: SMCurser supports using the arrow keys to tab through previous commands, akin to most shells. This setting sets the max amount of past commands that are saved for you to tab up to select.
+- `notifications`: Curses can't sense when the window is focused, so you can't dynamically show notifications based on whether or not you have the terminal window focused. If `notifications` is `True`, all notifications for texts you receive will be shown, else none will be shown.
 - `has_authenticated`: Sets to true once you authenticate with the server, so you don't authenticate every time you make a request.
