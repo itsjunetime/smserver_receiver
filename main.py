@@ -928,7 +928,7 @@ def onMsg(ws, msg):
 			req_string = f"http{'s' if settings['secure'] else ''}://{settings['ip']}:{settings['port']}/requests?name={from_chat}"
 			name = get(req_string, verify=False, timeout=settings['timeout']).text
 
-			if platform in ('linux', 'freebsd', 'openbsd'): system(f'notify-send "you got new texts from {name}!"')
+			if platform in ('linux', 'freebsd', 'openbsd'): system(f'notify-send "{name}: {text_json["text"]}"')
 			elif 'darwin' in platform: system(f'osascript -e \'display notification "{text_json["text"]}" with title "{name}"\'')
 			elif 'win32' in platform: ToastNotifier().show_toast(name, text_json["text"])
 
