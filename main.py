@@ -12,7 +12,7 @@ from time import sleep
 from concurrent.futures import ThreadPoolExecutor
 from subprocess import DEVNULL, STDOUT, check_call
 from datetime import datetime
-from os import system, path
+from os import system, path, getcwd
 from requests import get, post
 try:
 	import magic
@@ -37,8 +37,8 @@ settings = {
 	'chats_scroll_factor': 2,
 	'messages_scroll_factor': 5,
 	'current_chat_indicator': '>',
-	'my_chat_end': '╲▏',
-	'their_chat_end': '▕╱',
+	'my_chat_end': '⧹▏',
+	'their_chat_end': '▕⧸',
 	'chat_underline': '▔',
 	'chat_vertical_offset': 1,
 	'title_offset': 5,
@@ -928,7 +928,7 @@ def onMsg(ws, msg):
 			req_string = f"http{'s' if settings['secure'] else ''}://{settings['ip']}:{settings['port']}/requests?name={from_chat}"
 			name = get(req_string, verify=False, timeout=settings['timeout']).text
 
-			if platform in ('linux', 'freebsd', 'openbsd'): system(f'notify-send "{name}: {text_json["text"]}"')
+			if platform in ('linux', 'freebsd', 'openbsd'): system(f'notify-send -i "file://{getcwd()}/icon_small.png" "{name}" "{text_json["text"]}"')
 			elif 'darwin' in platform: system(f'osascript -e \'display notification "{text_json["text"]}" with title "{name}"\'')
 			elif 'win32' in platform: ToastNotifier().show_toast(name, text_json["text"])
 
