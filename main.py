@@ -220,7 +220,7 @@ def getChats(num = settings['default_num_chats'], offset = 0):
 	if not has_authenticated:
 		authenticate()
 
-	req_string = f"http{'s' if settings['secure'] else ''}://{settings['ip']}:{settings['port']}/{settings['req']}?chat=0&num_chats={str(num)}&chats_offset={str(offset)}"
+	req_string = f"http{'s' if settings['secure'] else ''}://{settings['ip']}:{settings['port']}/{settings['req']}?chats={num}&chats_offset={offset}"
 
 	num_requested_chats = num if offset == 0 else num_requested_chats + num
 
@@ -240,7 +240,7 @@ def getChats(num = settings['default_num_chats'], offset = 0):
 	if settings['debug']: print('chats_len: %d' % len(chat_items))
 	return_val = []
 	for i in chat_items:
-		new_chat = Chat(i['chat_identifier'], i['display_name'], False if i['has_unread'] == "false" else True)
+		new_chat = Chat(i['chat_identifier'], i['display_name'], i['has_unread'])
 		return_val.append(new_chat)
 
 	return return_val
@@ -332,7 +332,7 @@ def getMessages(id, num = settings['default_num_messages'], offset = 0):
 	global single_width
 	id = id.replace('+', '%2B')
 
-	req_string = f"http{'s' if settings['secure'] else ''}://{settings['ip']}:{settings['port']}/{settings['req']}?person={id}&num={str(num)}&offset={str(offset)}"
+	req_string = f"http{'s' if settings['secure'] else ''}://{settings['ip']}:{settings['port']}/{settings['req']}?messages={id}&num_messages={num}&messages_offset={offset}"
 	if settings['debug']: updateHbox(f'req: {req_string}')
 	new_messages = get(req_string, timeout=settings['timeout'], verify=False)
 	new_json = new_messages.json()
@@ -342,7 +342,7 @@ def getMessages(id, num = settings['default_num_messages'], offset = 0):
 		try:
 			att = i['attachments'] if 'attachments' in i.keys() else []
 			s = i['sender'] if ('sender' in i.keys() and i['sender'] != 'nil') else ''
-			new_m = Message(wrap(i['text'], single_width), i['date'], True if i['is_from_me'] == '1' else False, att, s)
+			new_m = Message(wrap(i['text'], single_width), i['date'], i['is_from_me'], att, s)
 			return_val.append(new_m)
 		except:
 			updateHbox(f'failed to get message from index {str(n)}')
@@ -913,7 +913,7 @@ def onMsg(ws, msg):
 	if prefix == 'text':
 		text_json = json.loads(content)['text']
 		from_chat = text_json['chat_identifier']
-		from_me = text_json['is_from_me'] == '1'
+		from_me = text_json['is_from_me']
 
 		if from_chat != chats[0].chat_id:
 			reloadChats()
