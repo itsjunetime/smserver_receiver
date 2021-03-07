@@ -1,4 +1,6 @@
-# SMCurser
+# SMServer_Receiver
+
+__This is deprecated. Please use [SMCurser](https://github.com/iandwelker/smcurser) instead__
 
 ![What it looks like](smserver_receiver.png)
 <span style="font-weight: 200; font-size: 12px;">SMCurser running on Konsole</span>
